@@ -13,6 +13,7 @@
     <description>Plataforma serverless para avaliação de aulas, notificação de criticidade e relatório semanal</description>
 
     <modules>
+        <module>modulo-dominio</module>
     </modules>
 
     <properties>
