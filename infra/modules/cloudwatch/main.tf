@@ -103,6 +103,30 @@ resource "aws_cloudwatch_metric_alarm" "dlq_com_mensagens" {
 }
 
 # ---------------------------------------------------------------------------
+# Alarme de 5xx no API Gateway — complementa o alarme de erro da própria função
+# receber-avaliacao, cobrindo falhas na camada de integração/API (ex.: throttling,
+# erro de payload) que não necessariamente aparecem como "Errors" no Lambda.
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
+  alarm_name          = "${var.prefixo}-api-gateway-5xx"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "5xx"
+  namespace           = "AWS/ApiGateway"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_description   = "API Gateway retornou 5xx — falha na integração com a função receber-avaliacao"
+  alarm_actions       = [aws_sns_topic.alertas_operacionais.arn]
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ApiId = var.id_api
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Dashboard único consolidando as 3 funções, o DynamoDB e a API.
 # ---------------------------------------------------------------------------
 
