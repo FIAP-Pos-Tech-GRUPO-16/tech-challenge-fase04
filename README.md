@@ -226,6 +226,10 @@ administrador. Detalhes em [`docs/monitoramento.md`](docs/monitoramento.md).
   de retry + DLQ dedicada — nenhuma falha é descartada silenciosamente.
 - **IAM de privilégio mínimo**: cada função tem sua própria role, sem permissão além do
   estritamente necessário.
+- **AWS Lambda SnapStart** nas 3 funções: cold start caiu de ~3.7-4s para ~1.6s (medido em
+  produção). Exigiu um gancho CRaC para renovar as credenciais da execution role após a
+  restauração do snapshot — sem isso, a função retomaria com credenciais potencialmente obsoletas.
+  Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ## Documentação completa
 
