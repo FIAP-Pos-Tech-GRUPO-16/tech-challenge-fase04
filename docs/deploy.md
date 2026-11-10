@@ -6,20 +6,34 @@ sem access keys guardadas como secret.
 
 ## 0. Pré-requisitos
 
-- Conta AWS (camada gratuita é suficiente para este desafio).
-- Usuário IAM com permissão de administrador **só para este primeiro setup** (depois disso, o
-  deploy contínuo roda com a role de escopo limitado criada pelo próprio Terraform).
-- `aws` CLI, `terraform` (>= 1.9) e Java 21 instalados localmente.
+- Conta AWS criada via **nova experiência AWS** (login social, estrutura de "projeto" — camada
+  gratuita/free tier é suficiente para este desafio). Essa conta trava **todos** os recursos
+  regionais numa única região (aqui, `us-east-2`) — já refletido em todo o Terraform/CI.
+- `aws` CLI v2, `terraform` (>= 1.9), `uv` e Java 21 instalados localmente (ver
+  [AWS Agent Toolkit](https://github.com/aws/agent-toolkit-for-aws) para o setup guiado).
 - Build das 3 funções feito (`mvn -DskipTests package` na raiz) — o Terraform referencia os jars
   em `funcao-*/target/*.jar`.
+- Essa conta usa `AccountFullAccessRole` (equivalente a admin) assumida via login — não existe
+  "usuário IAM com access key" para criar manualmente como num setup clássico de AWS.
 
-## 1. Configurar credenciais AWS localmente
+## 1. Autenticar localmente
 
 ```
-aws configure
+aws login --region us-east-2 --profile tech-challenge-fase04
 ```
-Informe access key, secret key e a região (`us-east-2`, igual ao padrão do projeto — a conta usa a
-"nova experiência AWS", que trava todos os recursos regionais numa única região por projeto).
+
+Abre o navegador para autenticação (login social). A sessão fica válida por 12h e pode ser
+renovada por até 90 dias sem reabrir o navegador (`aws login` de novo quando expirar). Depois de
+logar, exporte o profile para que o Terraform o use automaticamente:
+
+```
+export AWS_PROFILE=tech-challenge-fase04
+```
+
+Confirme o acesso:
+```
+aws sts get-caller-identity
+```
 
 ## 2. Bootstrap do state remoto (uma única vez)
 
