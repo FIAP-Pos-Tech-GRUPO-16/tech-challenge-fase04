@@ -103,6 +103,11 @@ module "eventbridge" {
   alias_funcao_gerar_relatorio_semanal = module.funcao_gerar_relatorio_semanal.nome_alias
 }
 
+module "cognito" {
+  source  = "./modules/cognito"
+  prefixo = var.prefixo
+}
+
 module "api_gateway" {
   source  = "./modules/api-gateway"
   prefixo = var.prefixo
@@ -112,6 +117,9 @@ module "api_gateway" {
   nome_funcao_receber_avaliacao          = module.funcao_receber_avaliacao.nome_funcao
   alias_funcao_receber_avaliacao         = module.funcao_receber_avaliacao.nome_alias
   retencao_logs_dias                     = var.retencao_logs_dias
+
+  cognito_issuer    = module.cognito.issuer
+  cognito_client_id = module.cognito.id_client
 }
 
 module "cloudwatch" {

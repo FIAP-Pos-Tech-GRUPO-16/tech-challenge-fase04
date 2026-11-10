@@ -11,3 +11,13 @@ output "url_dashboard" {
 output "nome_tabela_avaliacoes" {
   value = module.dynamodb.nome_tabela
 }
+
+output "cognito_user_pool_id" {
+  description = "ID do User Pool — usado para criar usuários de teste (AdminCreateUser)"
+  value       = module.cognito.id_user_pool
+}
+
+output "cognito_client_id" {
+  description = "Client ID do User Pool — usado para autenticar (InitiateAuth) e como audience do JWT"
+  value       = module.cognito.id_client
+}

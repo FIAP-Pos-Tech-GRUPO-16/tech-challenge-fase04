@@ -1,0 +1,3 @@
+variable "prefixo" {
+  type = string
+}

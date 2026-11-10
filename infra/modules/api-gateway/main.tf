@@ -18,10 +18,28 @@ resource "aws_apigatewayv2_integration" "receber_avaliacao" {
   payload_format_version = "2.0"
 }
 
+# Valida o JWT (token de identidade do Cognito) antes mesmo de invocar a Lambda — a função
+# receber-avaliacao não sabe nada sobre autenticação, essa responsabilidade fica inteira no
+# API Gateway.
+resource "aws_apigatewayv2_authorizer" "jwt_cognito" {
+  api_id           = aws_apigatewayv2_api.http_api.id
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  name             = "${var.prefixo}-jwt-cognito"
+
+  jwt_configuration {
+    audience = [var.cognito_client_id]
+    issuer   = var.cognito_issuer
+  }
+}
+
 resource "aws_apigatewayv2_route" "post_avaliacao" {
   api_id    = aws_apigatewayv2_api.http_api.id
   route_key = "POST /avaliacao"
   target    = "integrations/${aws_apigatewayv2_integration.receber_avaliacao.id}"
+
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt_cognito.id
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -29,8 +47,7 @@ resource "aws_apigatewayv2_stage" "default" {
   name        = "$default"
   auto_deploy = true
 
-  # Limite de requisições básico contra abuso — o endpoint é público e não exige
-  # autenticação (não é um requisito do desafio), então essa é a principal defesa.
+  # Limite de requisições básico contra abuso adicional, mesmo com autenticação exigida.
   default_route_settings {
     throttling_burst_limit = 10
     throttling_rate_limit  = 5
