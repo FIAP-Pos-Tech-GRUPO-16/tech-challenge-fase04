@@ -28,6 +28,10 @@ terraform.rc
 *.auto.tfvars
 secrets.tfvars
 
+### Claude Code (configuração local, não vai para o repositório remoto) ###
+.claude/
+CLAUDE.md
+
 ### Eclipse ###
 .apt_generated
 .classpath
