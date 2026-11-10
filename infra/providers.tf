@@ -20,7 +20,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Projeto    = "tech-challenge-fase04"
+      Projeto       = "tech-challenge-fase04"
       GerenciadoPor = "terraform"
     }
   }
