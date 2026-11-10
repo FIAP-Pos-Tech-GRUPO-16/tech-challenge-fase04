@@ -41,3 +41,21 @@ jobs:
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
         run: mvn -B -pl modulo-infraestrutura -am verify
+
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.1"
+
+      - name: Validar sintaxe e formatação (sem credenciais AWS)
+        working-directory: infra
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate

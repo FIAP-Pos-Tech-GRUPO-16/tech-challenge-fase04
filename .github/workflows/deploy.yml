@@ -1,20 +1,14 @@
-name: Deploy
+name: Build de deploy
 
-# Disparo manual apenas (workflow_dispatch): o job de terraform depende do secret AWS_ROLE_ARN,
-# que só existe depois do primeiro apply manual (ver docs/deploy.md, Fase 6). Antes disso, deixar
-# em push automático só deixaria o commit vermelho sem necessidade. Depois que a conta AWS estiver
-# configurada, dá para voltar a disparar em push se o grupo preferir.
+# O apply do Terraform é manual (rodado localmente por quem tiver `aws login` na conta) — a
+# conta usada neste projeto é da "nova experiência AWS", cuja Service Control Policy nega
+# iam:CreateOpenIDConnectProvider, inviabilizando autenticação via OIDC para o GitHub Actions
+# (confirmado em apply real; ver docs/deploy.md). Este workflow fica restrito a build/empacotamento,
+# que não depende de credenciais AWS — mantém os jars das 3 funções sempre prontos para deploy.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      aplicar:
-        description: "Aplicar as mudanças de infraestrutura (terraform apply). Sem marcar, roda só o plan."
-        type: boolean
-        default: false
-
-permissions:
-  id-token: write
-  contents: read
 
 jobs:
   build:
@@ -41,42 +35,3 @@ jobs:
             funcao-receber-avaliacao/target/*.jar
             funcao-notificar-urgencia/target/*.jar
             funcao-gerar-relatorio-semanal/target/*.jar
-
-  terraform:
-    needs: build
-    runs-on: ubuntu-latest
-    env:
-      TF_VAR_email_admin_inicial: ${{ secrets.EMAIL_ADMIN_INICIAL }}
-      TF_VAR_email_remetente: ${{ secrets.EMAIL_REMETENTE }}
-    steps:
-      - name: Baixar código
-        uses: actions/checkout@v4
-
-      - name: Baixar jars das funções
-        uses: actions/download-artifact@v4
-        with:
-          name: funcoes-lambda
-
-      - name: Configurar credenciais AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-2
-
-      - name: Instalar Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.17.1"
-
-      - name: Terraform init
-        working-directory: infra
-        run: terraform init -backend-config=backend.hcl
-
-      - name: Terraform plan
-        working-directory: infra
-        run: terraform plan -out=tfplan
-
-      - name: Terraform apply
-        if: github.event.inputs.aplicar == 'true'
-        working-directory: infra
-        run: terraform apply -auto-approve tfplan
