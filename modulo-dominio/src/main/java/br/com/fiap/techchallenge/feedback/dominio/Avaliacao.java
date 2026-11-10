@@ -12,14 +12,14 @@ public record Avaliacao(UUID id, String descricao, int nota, NivelUrgencia nivel
 
     private static final int NOTA_MINIMA = 0;
     private static final int NOTA_MAXIMA = 10;
+    private static final int DESCRICAO_TAMANHO_MAXIMO = 1000;
 
     public Avaliacao {
         Objects.requireNonNull(id, "Identificador da avaliação é obrigatório");
         Objects.requireNonNull(nivelUrgencia, "Nível de urgência é obrigatório");
         Objects.requireNonNull(dataEnvio, "Data de envio é obrigatória");
-        validarDescricao(descricao);
         validarNota(nota);
-        descricao = descricao.trim();
+        descricao = validarDescricao(descricao);
     }
 
     public static Avaliacao receber(String descricao, int nota, Instant dataEnvio) {
@@ -31,10 +31,16 @@ public record Avaliacao(UUID id, String descricao, int nota, NivelUrgencia nivel
         return nivelUrgencia == NivelUrgencia.ALTA;
     }
 
-    private static void validarDescricao(String descricao) {
+    private static String validarDescricao(String descricao) {
         if (descricao == null || descricao.isBlank()) {
             throw new AvaliacaoInvalidaException("Descrição da avaliação não pode ser vazia");
         }
+        String descricaoSemEspacos = descricao.trim();
+        if (descricaoSemEspacos.length() > DESCRICAO_TAMANHO_MAXIMO) {
+            throw new AvaliacaoInvalidaException(
+                "Descrição da avaliação não pode ter mais de %d caracteres".formatted(DESCRICAO_TAMANHO_MAXIMO));
+        }
+        return descricaoSemEspacos;
     }
 
     private static void validarNota(int nota) {

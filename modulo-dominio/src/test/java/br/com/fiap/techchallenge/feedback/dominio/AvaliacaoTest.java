@@ -48,4 +48,21 @@ class AvaliacaoTest {
 
         assertThat(avaliacao.descricao()).isEqualTo("Aula ótima");
     }
+
+    @Test
+    void deveRejeitarDescricaoMaiorQueOTamanhoMaximoPermitido() {
+        String descricaoMuitoLonga = "a".repeat(1001);
+
+        assertThatThrownBy(() -> Avaliacao.receber(descricaoMuitoLonga, 5, Instant.now()))
+            .isInstanceOf(AvaliacaoInvalidaException.class);
+    }
+
+    @Test
+    void deveAceitarDescricaoNoLimiteDoTamanhoMaximoPermitido() {
+        String descricaoNoLimite = "a".repeat(1000);
+
+        Avaliacao avaliacao = Avaliacao.receber(descricaoNoLimite, 5, Instant.now());
+
+        assertThat(avaliacao.descricao()).hasSize(1000);
+    }
 }
