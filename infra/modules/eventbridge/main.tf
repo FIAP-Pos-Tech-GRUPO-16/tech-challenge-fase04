@@ -112,6 +112,7 @@ resource "aws_lambda_permission" "permitir_eventbridge_notificar_urgencia" {
   statement_id  = "PermitirEventBridge"
   action        = "lambda:InvokeFunction"
   function_name = var.nome_funcao_notificar_urgencia
+  qualifier     = var.alias_funcao_notificar_urgencia
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.regra_urgencia_alta.arn
 }
@@ -178,6 +179,7 @@ resource "aws_lambda_permission" "permitir_scheduler_relatorio_semanal" {
   statement_id  = "PermitirEventBridgeScheduler"
   action        = "lambda:InvokeFunction"
   function_name = var.nome_funcao_gerar_relatorio_semanal
+  qualifier     = var.alias_funcao_gerar_relatorio_semanal
   principal     = "scheduler.amazonaws.com"
   source_arn    = aws_scheduler_schedule.relatorio_semanal.arn
 }

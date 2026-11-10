@@ -89,20 +89,28 @@ module "funcao_gerar_relatorio_semanal" {
 }
 
 module "eventbridge" {
-  source                              = "./modules/eventbridge"
-  prefixo                             = var.prefixo
-  nome_barramento                     = local.nome_barramento
-  arn_funcao_notificar_urgencia       = module.funcao_notificar_urgencia.arn_funcao
-  nome_funcao_notificar_urgencia      = module.funcao_notificar_urgencia.nome_funcao
-  arn_funcao_gerar_relatorio_semanal  = module.funcao_gerar_relatorio_semanal.arn_funcao
-  nome_funcao_gerar_relatorio_semanal = module.funcao_gerar_relatorio_semanal.nome_funcao
+  source          = "./modules/eventbridge"
+  prefixo         = var.prefixo
+  nome_barramento = local.nome_barramento
+
+  # Alias "live" (aponta para a versão publicada mais recente) — o SnapStart só se aplica a
+  # versões publicadas, nunca a $LATEST, então os alvos apontam para o alias, não para a função base.
+  arn_funcao_notificar_urgencia        = module.funcao_notificar_urgencia.arn_alias
+  nome_funcao_notificar_urgencia       = module.funcao_notificar_urgencia.nome_funcao
+  alias_funcao_notificar_urgencia      = module.funcao_notificar_urgencia.nome_alias
+  arn_funcao_gerar_relatorio_semanal   = module.funcao_gerar_relatorio_semanal.arn_alias
+  nome_funcao_gerar_relatorio_semanal  = module.funcao_gerar_relatorio_semanal.nome_funcao
+  alias_funcao_gerar_relatorio_semanal = module.funcao_gerar_relatorio_semanal.nome_alias
 }
 
 module "api_gateway" {
-  source                                 = "./modules/api-gateway"
-  prefixo                                = var.prefixo
-  arn_invocacao_funcao_receber_avaliacao = module.funcao_receber_avaliacao.arn_invocacao
+  source  = "./modules/api-gateway"
+  prefixo = var.prefixo
+
+  # Idem: aponta para o alias "live", não para a função base — necessário para o SnapStart.
+  arn_invocacao_funcao_receber_avaliacao = module.funcao_receber_avaliacao.arn_invocacao_alias
   nome_funcao_receber_avaliacao          = module.funcao_receber_avaliacao.nome_funcao
+  alias_funcao_receber_avaliacao         = module.funcao_receber_avaliacao.nome_alias
   retencao_logs_dias                     = var.retencao_logs_dias
 }
 

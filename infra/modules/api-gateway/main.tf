@@ -55,6 +55,7 @@ resource "aws_lambda_permission" "permitir_api_gateway" {
   statement_id  = "PermitirApiGateway"
   action        = "lambda:InvokeFunction"
   function_name = var.nome_funcao_receber_avaliacao
+  qualifier     = var.alias_funcao_receber_avaliacao
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
 }
