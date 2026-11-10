@@ -110,10 +110,46 @@ Ver [`funcoes.md`](funcoes.md) para o detalhamento de cada função (gatilho, en
 - Nenhum segredo em código-fonte: o e-mail do administrador vem do SSM; credenciais AWS nunca
   aparecem no repositório.
 
+## AWS Lambda SnapStart
+
+Implementado nas 3 funções (`terraform apply` confirmado, `OptimizationStatus: On` nas três,
+2026-11-10). Reduz o cold start de ~3.7-4s (init completo do Spring) para ~1.6s (restauração do
+snapshot) — medido em produção.
+
+- **Terraform**: cada função é publicada (`publish = true`) com `snap_start { apply_on =
+  "PublishedVersions" }` — o SnapStart só vale para versões publicadas, nunca para `$LATEST`. Um
+  alias `live` aponta sempre para a versão mais recente; API Gateway, EventBridge e o Scheduler
+  invocam o alias, não a função base.
+- **Credenciais pós-restauração**: o risco real do SnapStart é a execução retomar com as
+  credenciais da execution role obtidas antes do snapshot. Resolvido com um gancho CRaC
+  (`GanchoPosRestauracaoSnapStart`, em `modulo-infraestrutura`): todos os clientes AWS SDK de uma
+  função compartilham a mesma instância de `AwsCredentialsProvider`, e o gancho força a renovação
+  dessa instância em `afterRestore`, além de aquecer os clientes (`SdkWarmUp`) na inicialização.
+  Exigiu subir o AWS SDK para Java de 2.46.7 para **2.57.12** (a versão real mais recente — o
+  buscador do Maven Central estava reportando uma versão desatualizada) para ter acesso ao
+  `SdkWarmUp`.
+
 ## Fora do escopo do MVP (evolução futura)
 
-- **AWS Lambda SnapStart**: reduziria o cold start do Spring, mas exige tratamento explícito de
-  credenciais/estado pós-restore (risco não justificado para este desafio).
-- **Autenticação no endpoint público**.
+- **Autenticação no endpoint público** — ver discussão de alternativas e trade-offs abaixo.
 - **Múltiplos ambientes** (dev/stage/prod) — um único ambiente é suficiente para o escopo
   acadêmico.
+
+## Autenticação no endpoint público — avaliado, não implementado
+
+O enunciado não exige autenticação em `POST /avaliacao`, e a defesa atual contra abuso é o
+throttling do API Gateway (10 burst / 5 req/s). Avaliar autenticação de verdade aqui esbarra numa
+limitação técnica real: **API Gateway HTTP API (v2) não suporta API Keys/usage plans nativos**
+(isso é exclusivo de REST API v1) — para proteger o endpoint seria preciso um destes caminhos,
+cada um com um trade-off bem diferente:
+
+| Opção | O que muda | Trade-off |
+|---|---|---|
+| **Lambda Authorizer com chave compartilhada** (header `x-api-key` validado por uma função extra) | Pouco esforço, sem conceito de usuário | É só "um segredo a mais", não autenticação de verdade — qualquer um com a chave acessa |
+| **Amazon Cognito + JWT Authorizer** | Estudantes passam a ter conta/login de verdade | Muda o contrato do produto (o enunciado não pressupõe login); custo e complexidade operacional bem maiores |
+| **IAM/SigV4** (como as invocações diretas de Lambda na collection Postman) | Reusa infraestrutura AWS existente | Só funciona para chamadores com credenciais AWS — não serve para um estudante anônimo |
+
+Nenhuma dessas opções é um "liga e pronto": a primeira não é proteção real, a segunda muda a
+experiência do produto, a terceira não serve para o público-alvo do endpoint. Por isso ficou
+documentada como evolução futura em vez de implementada "para ter alguma coisa" — a decisão de
+qual caminho seguir depende de um requisito de produto que o enunciado não define.
