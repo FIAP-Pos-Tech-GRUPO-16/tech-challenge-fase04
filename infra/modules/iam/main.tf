@@ -201,8 +201,8 @@ data "aws_iam_policy_document" "deploy_github_actions" {
     sid       = "AcessoAoStateRemoto"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
     resources = [
-      "arn:aws:s3:::${var.prefixo}-terraform-state",
-      "arn:aws:s3:::${var.prefixo}-terraform-state/*",
+      "arn:aws:s3:::${var.prefixo}-terraform-state-${data.aws_caller_identity.atual.account_id}",
+      "arn:aws:s3:::${var.prefixo}-terraform-state-${data.aws_caller_identity.atual.account_id}/*",
     ]
   }
 

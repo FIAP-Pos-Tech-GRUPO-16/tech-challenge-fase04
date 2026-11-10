@@ -17,8 +17,11 @@ provider "aws" {
   region = var.regiao
 }
 
+data "aws_caller_identity" "atual" {}
+
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.prefixo}-terraform-state"
+  # Nomes de bucket S3 são globais entre todas as contas AWS — o ID da conta garante unicidade.
+  bucket = "${var.prefixo}-terraform-state-${data.aws_caller_identity.atual.account_id}"
 
   tags = {
     Projeto = var.prefixo
