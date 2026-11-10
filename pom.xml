@@ -15,6 +15,7 @@
     <modules>
         <module>modulo-dominio</module>
         <module>modulo-aplicacao</module>
+        <module>modulo-infraestrutura</module>
     </modules>
 
     <properties>
@@ -24,6 +25,9 @@
         <junit.version>5.11.3</junit.version>
         <assertj.version>3.26.3</assertj.version>
         <mockito.version>5.14.2</mockito.version>
+        <aws-sdk.version>2.46.7</aws-sdk.version>
+        <jackson.version>2.19.0</jackson.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -51,6 +55,27 @@
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
