@@ -16,6 +16,9 @@
         <module>modulo-dominio</module>
         <module>modulo-aplicacao</module>
         <module>modulo-infraestrutura</module>
+        <module>funcao-receber-avaliacao</module>
+        <module>funcao-notificar-urgencia</module>
+        <module>funcao-gerar-relatorio-semanal</module>
     </modules>
 
     <properties>
@@ -28,6 +31,10 @@
         <aws-sdk.version>2.46.7</aws-sdk.version>
         <jackson.version>2.19.0</jackson.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <spring-boot.version>3.5.3</spring-boot.version>
+        <spring-cloud-function.version>4.3.0</spring-cloud-function.version>
+        <aws-lambda-java-events.version>3.16.1</aws-lambda-java-events.version>
+        <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -77,6 +84,25 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-function-dependencies</artifactId>
+                <version>${spring-cloud-function.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-lambda-java-events</artifactId>
+                <version>${aws-lambda-java-events.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -118,6 +144,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
                     <version>${maven-failsafe-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>${maven-shade-plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
