@@ -27,11 +27,12 @@ as configurações do projeto. Sugestão de roteiro (ajustar à vontade):
   reais das invocações feitas no passo anterior.
 - Mostrar um dos alarmes configurados (mesmo que em estado OK).
 
-## 5. Deploy automatizado (1-2 min)
-- Mostrar o pipeline `.github/workflows/deploy.yml` rodando no GitHub Actions (aba Actions do
-  repositório) — build dos jars + `terraform plan`.
-- Explicar que o `apply` é disparado manualmente (`workflow_dispatch`) para controlar o consumo de
-  créditos de cloud, e que a autenticação é via OIDC (sem access key guardada no repositório).
+## 5. Build e testes automatizados (1-2 min)
+- Mostrar os pipelines `ci.yml` (testes unitários + integração + validação do Terraform) e
+  `deploy.yml` (empacotamento dos jars) rodando no GitHub Actions a cada push.
+- Explicar que o `terraform apply` é manual, feito localmente por quem tem acesso à conta AWS —
+  a conta usa a "nova experiência AWS", que bloqueia a criação de um provedor OIDC por política
+  de organização, então o CI não guarda nenhuma credencial AWS.
 
 ## Checklist antes de gravar
 - [ ] Repositório com todo o código commitado e enviado.

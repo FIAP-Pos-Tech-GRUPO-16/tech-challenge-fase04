@@ -1,8 +1,11 @@
 # Instruções de deploy
 
-O deploy tem duas partes: um **primeiro apply manual** (alguém do grupo, com uma conta AWS e
-credenciais locais) e, a partir daí, **deploys automatizados** via GitHub Actions usando OIDC —
-sem access keys guardadas como secret.
+O `terraform apply` é **manual**, feito localmente por quem tiver acesso à conta AWS do projeto.
+A conta usa a "nova experiência AWS" (login social, estrutura de "projeto"), cuja Service Control
+Policy nega `iam:CreateOpenIDConnectProvider` — isso inviabiliza autenticação via OIDC para o
+GitHub Actions (testado e confirmado em apply real), então não existe deploy 100% automatizado a
+partir do CI para este tipo de conta. O GitHub Actions cuida do que não depende de credencial AWS:
+testes (unitários + integração) a cada push/PR e empacotamento dos jars das 3 funções.
 
 ## 0. Pré-requisitos
 
@@ -23,16 +26,27 @@ aws login --region us-east-2 --profile tech-challenge-fase04
 ```
 
 Abre o navegador para autenticação (login social). A sessão fica válida por 12h e pode ser
-renovada por até 90 dias sem reabrir o navegador (`aws login` de novo quando expirar). Depois de
-logar, exporte o profile para que o Terraform o use automaticamente:
+renovada por até 90 dias sem reabrir o navegador (rodar `aws login` de novo quando expirar).
 
-```
-export AWS_PROFILE=tech-challenge-fase04
+**O Terraform não entende o tipo de credencial do `aws login` diretamente** (`aws configure list`
+mostra `access_key`/`secret_key` do tipo `login`, que o SDK usado pelo Terraform não reconhece).
+A correção é um profile adicional com `credential_process`, que delega a resolução de volta para
+o `aws` CLI — configure uma vez em `~/.aws/config`:
+
+```ini
+[profile tech-challenge-fase04-terraform]
+region = us-east-2
+credential_process = aws configure export-credentials --profile tech-challenge-fase04 --format process
 ```
 
-Confirme o acesso:
+Use **esse** profile (com `-terraform` no nome) em todo comando Terraform daqui pra frente:
 ```
-aws sts get-caller-identity
+export AWS_PROFILE=tech-challenge-fase04-terraform
+```
+
+Confirme o acesso (com qualquer um dos dois profiles):
+```
+aws sts get-caller-identity --profile tech-challenge-fase04
 ```
 
 ## 2. Bootstrap do state remoto (uma única vez)
@@ -43,9 +57,10 @@ terraform init
 terraform apply
 ```
 
-Cria o bucket S3 (`tech-challenge-fase04-terraform-state`) e a tabela DynamoDB
-(`tech-challenge-fase04-terraform-lock`) usados pelo backend remoto do módulo principal. Os nomes
-já estão fixados em `infra/backend.hcl` — se mudar o prefixo do projeto, atualize os dois lugares.
+Cria o bucket S3 (`tech-challenge-fase04-terraform-state-<account-id>` — nomes de bucket são
+globais entre todas as contas AWS, por isso o ID da conta entra no nome) e a tabela DynamoDB
+(`tech-challenge-fase04-terraform-lock`) usados pelo backend remoto do módulo principal. Conferir
+o nome real do bucket no output `bucket_state` e atualizar `infra/backend.hcl` se divergir.
 
 ## 3. Primeiro apply do módulo principal
 
@@ -55,58 +70,40 @@ mvn -DskipTests package -f ..   # garante que os 3 jars existem antes do apply
 terraform init -backend-config=backend.hcl
 terraform plan \
   -var="email_admin_inicial=<email-do-admin>" \
-  -var="email_remetente=<email-remetente-verificavel>"
-terraform apply \
-  -var="email_admin_inicial=<email-do-admin>" \
-  -var="email_remetente=<email-remetente-verificavel>"
+  -var="email_remetente=<email-remetente-verificavel>" \
+  -out=tfplan
+terraform apply tfplan
 ```
 
-Isso cria: DynamoDB, SSM, SES (identidades), IAM (roles + provider OIDC do GitHub), as 3 funções
-Lambda, API Gateway, EventBridge (barramento + regra + scheduler + DLQs) e CloudWatch (dashboard +
-alarmes + SNS).
+Se `email_admin_inicial` e `email_remetente` forem o mesmo e-mail (comum para este desafio), o
+Terraform cria só uma identidade SES — não duplica.
+
+Isso cria: DynamoDB, SSM, SES (identidades), IAM (roles de execução das 3 funções, privilégio
+mínimo), as 3 funções Lambda, API Gateway, EventBridge (barramento + regra + scheduler + DLQs) e
+CloudWatch (dashboard + alarmes + SNS).
 
 ## 4. Passos manuais que a AWS exige (fora do Terraform)
 
 Terraform cria os recursos, mas duas confirmações só chegam por e-mail e precisam ser clicadas:
 
-1. **Verificação de identidade do SES** — chega um e-mail da AWS tanto para o remetente quanto
-   para o e-mail do admin (modo sandbox exige os dois verificados). Sem confirmar, o envio de
-   e-mail falha.
+1. **Verificação de identidade do SES** — chega um e-mail da AWS para cada identidade criada
+   (remetente e, se for um e-mail diferente, o admin). Modo sandbox exige ambos verificados — sem
+   confirmar, o envio de e-mail falha.
 2. **Confirmação de inscrição do SNS** — chega um e-mail "AWS Notification - Subscription
    Confirmation" para o admin. Sem confirmar, os alarmes disparam mas o e-mail de alerta não
    chega.
 
-## 5. Configurar os secrets do GitHub Actions
+## 5. Secret do GitHub Actions (CI)
 
-Dois grupos de secret, em momentos diferentes (**Settings → Secrets and variables → Actions**):
-
-**Já pode cadastrar agora, independe de ter conta AWS** (necessário para o workflow `CI` passar):
-
-| Secret | Valor |
-|---|---|
-| `LOCALSTACK_AUTH_TOKEN` | token de uma conta gratuita em app.localstack.cloud |
+Só um secret é necessário, independente de conta AWS — usado pelo workflow `CI` para rodar os
+testes de integração contra LocalStack:
 
 ```
-gh secret set LOCALSTACK_AUTH_TOKEN --body "<token>"
+gh secret set LOCALSTACK_AUTH_TOKEN --body "<token de uma conta gratuita em app.localstack.cloud>"
 ```
 
-**Só depois do primeiro `apply` manual** (necessário para o workflow `Deploy` funcionar):
-
-```
-terraform output arn_role_deploy_github_actions
-```
-
-| Secret | Valor |
-|---|---|
-| `AWS_ROLE_ARN` | saída do comando acima |
-| `EMAIL_ADMIN_INICIAL` | mesmo e-mail usado no apply manual |
-| `EMAIL_REMETENTE` | mesmo e-mail remetente usado no apply manual |
-
-O workflow `Deploy` (`.github/workflows/deploy.yml`) é **disparo manual** (`workflow_dispatch`):
-aba Actions → Deploy → Run workflow. Sem marcar a opção "aplicar", roda só `terraform plan`
-(seguro, não altera nada); marcando, roda o `apply` de verdade. Fica manual de propósito — até a
-conta AWS estar configurada ele falharia em todo push automático, e mesmo depois, disparar
-`apply` continuamente a cada push gastaria créditos de cloud sem necessidade.
+Não há secret de credencial AWS no GitHub: o workflow `deploy.yml` só builda e empacota os jars
+(não aplica infraestrutura).
 
 ## 6. Smoke test pós-deploy
 
@@ -130,6 +127,7 @@ Para testar o relatório semanal sem esperar a segunda-feira:
 
 ```
 aws lambda invoke \
+  --profile tech-challenge-fase04 \
   --function-name tech-challenge-fase04-gerar-relatorio-semanal \
   --payload '{}' \
   --cli-binary-format raw-in-base64-out \
@@ -139,6 +137,7 @@ cat saida.json
 
 ## Atualizações de código (deploy incremental)
 
-Depois do setup inicial, qualquer mudança nas funções Lambda é aplicada automaticamente pelo
-pipeline: `mvn package` gera os jars → `terraform apply` detecta o novo
-`source_code_hash` (hash do jar) → atualiza só a função que mudou.
+Depois do setup inicial, qualquer mudança nas funções Lambda é aplicada rodando de novo, localmente:
+`mvn package` gera os jars → `terraform plan`/`apply` detecta o novo `source_code_hash` (hash do
+jar) → atualiza só a função que mudou. O workflow `deploy.yml` do GitHub Actions mantém os jars
+sempre buildados automaticamente a cada push, prontos para esse `apply` local.

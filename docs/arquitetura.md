@@ -99,8 +99,11 @@ Ver [`funcoes.md`](funcoes.md) para o detalhamento de cada função (gatilho, en
 - Cada função Lambda tem sua própria IAM role com política de privilégio mínimo — nenhuma delas
   tem permissão além do estritamente necessário (ex.: `notificar-urgencia` só pode `ses:SendEmail`
   e `ssm:GetParameter`, nunca `dynamodb:*`).
-- Deploy automatizado via GitHub Actions autentica na AWS por **OIDC** (sem access keys de longa
-  duração guardadas como secret).
+- Deploy (`terraform apply`) é feito localmente por quem tiver `aws login` na conta — a conta usa
+  a "nova experiência AWS", cuja Service Control Policy nega `iam:CreateOpenIDConnectProvider`,
+  o que inviabiliza autenticação via OIDC para o GitHub Actions (avaliado e descartado após
+  confirmar o bloqueio em apply real). O GitHub Actions cuida de testes e build/empacotamento dos
+  jars automaticamente a cada push — nenhuma credencial AWS fica no CI.
 - Dados em trânsito: HTTPS nativo (API Gateway, SES). Dados em repouso: criptografia padrão do
   DynamoDB e SQS (SSE gerenciado pela AWS).
 - Logs do CloudWatch com retenção limitada (30 dias) — evita acúmulo indefinido de dados.
