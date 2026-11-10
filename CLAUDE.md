@@ -107,8 +107,11 @@ depende de Spring, AWS SDK ou qualquer framework. Os casos de uso dependem apena
 
 ## Ambiente local
 
-- Java 21 (toolchain local é JDK 26, compilar com `--release 21` para compatibilidade com o
-  runtime Lambda `java21`).
+- Java 21 é o alvo (runtime Lambda `java21`). O JDK do sistema é a 26 — o Mockito (inline mock
+  maker) não funciona nela. Por isso o build usa **Maven Toolchains**: `~/.m2/toolchains.xml`
+  aponta para o JDK 21 do Homebrew (`openjdk@21`) e o `maven-toolchains-plugin` no pom pai força
+  todo o reactor a compilar/testar com ele. Se `mvn test` falhar com erro do ByteBuddy/MockMaker,
+  confira se `~/.m2/toolchains.xml` existe e se `brew list openjdk@21` está instalado.
 - Maven 3.9+, Docker (para LocalStack/Testcontainers), `gh` autenticado como `digonexs`.
 - AWS CLI/Terraform/SAM **ainda não instalados** nesta máquina — instalar quando a Fase 4/6 do
   plano chegar lá.
