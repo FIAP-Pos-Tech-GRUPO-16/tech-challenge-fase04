@@ -79,8 +79,9 @@ Se `email_admin_inicial` e `email_remetente` forem o mesmo e-mail (comum para es
 Terraform cria só uma identidade SES — não duplica.
 
 Isso cria: DynamoDB, SSM, SES (identidades), IAM (roles de execução das 3 funções, privilégio
-mínimo), as 3 funções Lambda, API Gateway, EventBridge (barramento + regra + scheduler + DLQs) e
-CloudWatch (dashboard + alarmes + SNS).
+mínimo), as 3 funções Lambda (com SnapStart + alias `live`), API Gateway (com JWT Authorizer),
+Cognito (User Pool + client), EventBridge (barramento + regra + scheduler + DLQs) e CloudWatch
+(dashboard + alarmes + SNS).
 
 ## 4. Passos manuais que a AWS exige (fora do Terraform)
 
@@ -93,7 +94,24 @@ Terraform cria os recursos, mas duas confirmações só chegam por e-mail e prec
    Confirmation" para o admin. Sem confirmar, os alarmes disparam mas o e-mail de alerta não
    chega.
 
-## 5. Secret do GitHub Actions (CI)
+## 5. Criar um usuário de teste no Cognito
+
+`POST /avaliacao` exige um JWT válido (JWT Authorizer no API Gateway). Crie um usuário de teste:
+
+```
+USER_POOL_ID=$(terraform output -raw cognito_user_pool_id)
+CLIENT_ID=$(terraform output -raw cognito_client_id)
+
+aws cognito-idp admin-create-user \
+  --user-pool-id "$USER_POOL_ID" --username estudante.teste --message-action SUPPRESS
+
+aws cognito-idp admin-set-user-password \
+  --user-pool-id "$USER_POOL_ID" --username estudante.teste --password "SenhaForte#2026" --permanent
+```
+
+A collection do Postman (pasta 00) faz exatamente isso automaticamente — ver `postman/README.md`.
+
+## 6. Secret do GitHub Actions (CI)
 
 Só um secret é necessário, independente de conta AWS — usado pelo workflow `CI` para rodar os
 testes de integração contra LocalStack:
@@ -105,19 +123,29 @@ gh secret set LOCALSTACK_AUTH_TOKEN --body "<token de uma conta gratuita em app.
 Não há secret de credencial AWS no GitHub: o workflow `deploy.yml` só builda e empacota os jars
 (não aplica infraestrutura).
 
-## 6. Smoke test pós-deploy
+## 7. Smoke test pós-deploy
 
 ```
 API_URL=$(cd infra && terraform output -raw url_api)
+CLIENT_ID=$(cd infra && terraform output -raw cognito_client_id)
+
+ID_TOKEN=$(aws cognito-idp initiate-auth \
+  --client-id "$CLIENT_ID" --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=estudante.teste,PASSWORD='SenhaForte#2026' \
+  --query 'AuthenticationResult.IdToken' --output text)
 
 curl -i -X POST "$API_URL/avaliacao" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ID_TOKEN" \
   -d '{"descricao": "Aula excelente, professor muito didático", "nota": 9}'
 
 curl -i -X POST "$API_URL/avaliacao" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ID_TOKEN" \
   -d '{"descricao": "Aula com problemas graves de áudio", "nota": 1}'
 ```
+
+Sem o header `Authorization`, a API responde `401` — é o comportamento esperado, não um erro.
 
 - A primeira deve retornar `201` com `nivelUrgencia: BAIXA` e **não** gerar e-mail.
 - A segunda deve retornar `201` com `nivelUrgencia: ALTA` e, em alguns segundos, chegar o e-mail
@@ -141,3 +169,31 @@ Depois do setup inicial, qualquer mudança nas funções Lambda é aplicada roda
 `mvn package` gera os jars → `terraform plan`/`apply` detecta o novo `source_code_hash` (hash do
 jar) → atualiza só a função que mudou. O workflow `deploy.yml` do GitHub Actions mantém os jars
 sempre buildados automaticamente a cada push, prontos para esse `apply` local.
+
+## Troubleshooting: apply interrompido (rede caiu, lock travado)
+
+O `publish` das funções (necessário para o SnapStart) demora — a AWS precisa criar o snapshot
+otimizado, não é só salvar o código. Isso aumenta a janela de exposição a uma queda de rede/wifi
+no meio do `apply`. Já aconteceu em produção (2026-11-10): a conexão caiu durante o publish de uma
+função, o `credential_process` (baseado em `aws configure export-credentials`) deu timeout, e o
+Terraform não conseguiu nem salvar o state no S3 nem liberar o lock do DynamoDB.
+
+**Recuperação segura, nessa ordem — nunca pule direto para `force-unlock`:**
+
+1. Confirme que a rede voltou e a sessão ainda é válida: `aws sts get-caller-identity --profile
+   tech-challenge-fase04`.
+2. Confirme que o processo `terraform apply` original realmente morreu (`ps aux | grep terraform`)
+   — nunca dar force-unlock com um apply genuíno ainda rodando em outro lugar.
+3. Olhe o lock preso: `aws dynamodb scan --table-name tech-challenge-fase04-terraform-lock`. O
+   `LockID` principal tem um `Info` com um ID de lock — é esse ID que vai no `force-unlock`.
+4. Confira o real estado na AWS antes de confiar no Terraform (ex.: `aws lambda list-versions-by-function`
+   para ver se uma nova versão foi publicada do lado do servidor mesmo com o cliente tendo caído —
+   AWS continua processando operações já iniciadas mesmo que o Terraform perca a conexão).
+5. Só então: `terraform force-unlock -force <LOCK_ID>`.
+6. Rode `terraform plan` (nunca `apply` direto) — o Terraform detecta e avisa sobre mudanças feitas
+   "outside of Terraform" (a versão publicada que o servidor completou), e o plano resultante
+   normalmente é pequeno e seguro (só reconcilia o que ficou pela metade — ex.: apontar o alias
+   `live` para a versão nova). Revise antes de aplicar.
+7. Confirme consistência rodando `terraform plan` de novo depois do apply — deve dizer "No
+   changes". Só então apague o `errored.tfstate` que o Terraform cria como backup local nesse tipo
+   de falha.

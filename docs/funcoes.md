@@ -15,9 +15,15 @@ Código-fonte: `funcao-receber-avaliacao/`, `funcao-notificar-urgencia/`,
 | | |
 |---|---|
 | Responsabilidade única | Validar, persistir e publicar o evento de uma avaliação recebida |
-| Gatilho | API Gateway (HTTP API) — `POST /avaliacao` |
+| Gatilho | API Gateway (HTTP API) — `POST /avaliacao`, protegido por JWT Authorizer (Cognito) |
 | Classe principal | `br.com.fiap.techchallenge.feedback.funcao.receberavaliacao.AplicacaoReceberAvaliacao` |
 | Handler (classe) | `HandlerReceberAvaliacao implements Function<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse>` |
+
+**Autenticação**: exige header `Authorization: Bearer <JWT do Cognito>` — validado inteiramente
+pelo API Gateway antes de invocar a função; o handler/caso de uso não tem nenhum código de
+autenticação. Sem token válido, a requisição nem chega na Lambda (`401`). Ver
+[`arquitetura.md`](arquitetura.md) e `postman/README.md` (pasta 00) para como obter um token de
+teste.
 
 **Entrada** (corpo da requisição HTTP, conforme contrato do desafio):
 ```json
@@ -27,7 +33,9 @@ Código-fonte: `funcao-receber-avaliacao/`, `funcao-notificar-urgencia/`,
 **Saída**:
 - `201 Created` com `{ "id": "uuid", "nivelUrgencia": "ALTA|MEDIA|BAIXA" }` quando válida.
 - `400 Bad Request` com `{ "mensagem": "..." }` quando a nota está fora de 0-10, a descrição está
-  vazia, o corpo está ausente ou o JSON é inválido.
+  vazia (ou acima de 1000 caracteres), o corpo está ausente ou o JSON é inválido.
+- `401 Unauthorized` quando o token está ausente ou inválido (resposta do API Gateway, a função
+  nunca chega a ser invocada).
 
 **Efeitos colaterais**: grava um item na tabela DynamoDB `avaliacoes`; publica o evento
 `AvaliacaoRecebida` (detail-type) no barramento EventBridge do projeto, já com o campo

@@ -131,25 +131,32 @@ snapshot) — medido em produção.
 
 ## Fora do escopo do MVP (evolução futura)
 
-- **Autenticação no endpoint público** — ver discussão de alternativas e trade-offs abaixo.
 - **Múltiplos ambientes** (dev/stage/prod) — um único ambiente é suficiente para o escopo
   acadêmico.
+- **Auto-cadastro de estudantes com verificação de e-mail**: o User Pool do Cognito não pede
+  e-mail verificado nem tem fluxo de sign-up público — usuários de teste são criados via admin
+  (`AdminCreateUser`). Suficiente para este desafio; um produto real precisaria de sign-up
+  self-service.
 
-## Autenticação no endpoint público — avaliado, não implementado
+## Autenticação no endpoint público (Cognito + JWT Authorizer)
 
-O enunciado não exige autenticação em `POST /avaliacao`, e a defesa atual contra abuso é o
-throttling do API Gateway (10 burst / 5 req/s). Avaliar autenticação de verdade aqui esbarra numa
-limitação técnica real: **API Gateway HTTP API (v2) não suporta API Keys/usage plans nativos**
-(isso é exclusivo de REST API v1) — para proteger o endpoint seria preciso um destes caminhos,
-cada um com um trade-off bem diferente:
+O enunciado não exige autenticação em `POST /avaliacao` — foi implementada mesmo assim, a pedido
+explícito do usuário. Avaliação de alternativas antes de implementar (API Gateway HTTP API v2 não
+suporta API Keys/usage plans nativos — exclusivo de REST API v1):
 
 | Opção | O que muda | Trade-off |
 |---|---|---|
-| **Lambda Authorizer com chave compartilhada** (header `x-api-key` validado por uma função extra) | Pouco esforço, sem conceito de usuário | É só "um segredo a mais", não autenticação de verdade — qualquer um com a chave acessa |
-| **Amazon Cognito + JWT Authorizer** | Estudantes passam a ter conta/login de verdade | Muda o contrato do produto (o enunciado não pressupõe login); custo e complexidade operacional bem maiores |
-| **IAM/SigV4** (como as invocações diretas de Lambda na collection Postman) | Reusa infraestrutura AWS existente | Só funciona para chamadores com credenciais AWS — não serve para um estudante anônimo |
+| Lambda Authorizer com chave compartilhada | Pouco esforço | Não é autenticação de verdade — qualquer um com a chave acessa |
+| **Amazon Cognito + JWT Authorizer (escolhida)** | Estudantes passam a ter conta/login real | Muda o contrato do produto; mais complexidade operacional |
+| IAM/SigV4 | Reusa infra AWS existente | Só serve para chamador com credenciais AWS, não para estudante anônimo |
 
-Nenhuma dessas opções é um "liga e pronto": a primeira não é proteção real, a segunda muda a
-experiência do produto, a terceira não serve para o público-alvo do endpoint. Por isso ficou
-documentada como evolução futura em vez de implementada "para ter alguma coisa" — a decisão de
-qual caminho seguir depende de um requisito de produto que o enunciado não define.
+**Implementação** (`infra/modules/cognito/`):
+- `aws_cognito_user_pool` + `aws_cognito_user_pool_client` (cliente público, sem secret, fluxo
+  `USER_PASSWORD_AUTH` habilitado — permite obter token via CLI/Postman sem SECRET_HASH).
+- `aws_apigatewayv2_authorizer` do tipo `JWT` no API Gateway, `audience` = client ID, `issuer` =
+  URL do User Pool — anexado à rota `POST /avaliacao` (`authorization_type = "JWT"`).
+- A função `receber-avaliacao` **não tem nenhum código de autenticação** — o API Gateway rejeita
+  requisições sem um JWT válido antes mesmo de invocar a Lambda. Confirmado em produção: sem
+  token → `401`; com token de um usuário autenticado → `201`.
+- Usuários de teste são criados via `AdminCreateUser` + `AdminSetUserPassword` (admin, bypassa
+  verificação de e-mail) — ver `docs/deploy.md` e `postman/README.md`.

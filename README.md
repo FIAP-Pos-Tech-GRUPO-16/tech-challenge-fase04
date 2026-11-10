@@ -91,7 +91,7 @@ Detalhamento completo, trade-offs e justificativas de cada escolha em
 |---|---|
 | Linguagem / runtime | Java 21, AWS Lambda |
 | Framework das funções | Spring Boot 3.5 + Spring Cloud Function 4.3 (adapter AWS) |
-| Cloud | AWS — Lambda, API Gateway (HTTP API), DynamoDB, EventBridge (bus + regra + Scheduler), SES, SSM Parameter Store, SQS (DLQ), CloudWatch (logs/alarmes/dashboard), SNS |
+| Cloud | AWS — Lambda (SnapStart), API Gateway (HTTP API + JWT Authorizer), Cognito, DynamoDB, EventBridge (bus + regra + Scheduler), SES, SSM Parameter Store, SQS (DLQ), CloudWatch (logs/alarmes/dashboard), SNS |
 | AWS SDK | AWS SDK for Java v2 (DynamoDB Enhanced Client, SESv2, EventBridge, SSM) |
 | Infraestrutura como código | Terraform 1.17 |
 | CI/CD | GitHub Actions |
@@ -124,16 +124,19 @@ depende de Spring, AWS SDK ou qualquer framework; os casos de uso dependem só d
 
 ## Como funciona
 
-1. **`receber-avaliacao`** recebe `POST /avaliacao` (`{ "descricao": string, "nota": 0-10 }`),
-   valida, classifica a urgência (**regra de domínio**: nota 0-3 = ALTA, 4-6 = MÉDIA, 7-10 = BAIXA),
-   persiste no DynamoDB e publica o evento `AvaliacaoRecebida` no EventBridge — já com o nível de
-   urgência calculado.
-2. Uma regra do EventBridge roteia o evento para **`notificar-urgencia`** só quando
+1. O estudante autentica no **Cognito** (usuário/senha) e recebe um JWT. `POST /avaliacao` exige
+   `Authorization: Bearer <token>` — o **API Gateway valida o token antes de invocar a Lambda**
+   (a função não tem nenhum código de autenticação).
+2. **`receber-avaliacao`** recebe `{ "descricao": string, "nota": 0-10 }`, valida, classifica a
+   urgência (**regra de domínio**: nota 0-3 = ALTA, 4-6 = MÉDIA, 7-10 = BAIXA), persiste no
+   DynamoDB e publica o evento `AvaliacaoRecebida` no EventBridge — já com o nível de urgência
+   calculado.
+3. Uma regra do EventBridge roteia o evento para **`notificar-urgencia`** só quando
    `nivelUrgencia = ALTA`. A função envia um e-mail de alerta via SES (descrição, urgência, data).
-3. Toda segunda-feira (EventBridge Scheduler), **`gerar-relatorio-semanal`** agrega as avaliações
+4. Toda segunda-feira (EventBridge Scheduler), **`gerar-relatorio-semanal`** agrega as avaliações
    dos últimos 7 dias (via índice do DynamoDB, sem Scan) e envia por e-mail: lista das avaliações,
    média das notas, quantidade por dia e por nível de urgência.
-4. O e-mail do administrador fica no **SSM Parameter Store** (nunca hardcoded) — trocar o
+5. O e-mail do administrador fica no **SSM Parameter Store** (nunca hardcoded) — trocar o
    destinatário não exige novo deploy. Cada alvo assíncrono do EventBridge tem uma **DLQ** própria
    (SQS), então nenhuma falha é descartada silenciosamente.
 
@@ -172,24 +175,41 @@ e a collection do Postman contra o deploy real cobrem o comportamento de ponta a
 
 Importe a [collection do Postman](postman/) (`postman/tech-challenge-fase04.postman_collection.json`
 + `postman/tech-challenge-fase04.postman_environment.json`) — já configurada com a URL da API em
-produção. Cobre os 3 componentes: o endpoint HTTP e as duas funções orientadas a evento/agendamento
-(invocadas diretamente via API de Invoke do Lambda com AWS Signature v4). Instruções detalhadas em
+produção. Cobre os 3 componentes: autenticação (Cognito — cria usuário de teste e obtém o JWT
+automaticamente), o endpoint HTTP e as duas funções orientadas a evento/agendamento (invocadas
+diretamente via API de Invoke do Lambda com AWS Signature v4). Instruções detalhadas em
 [`postman/README.md`](postman/README.md).
 
 ### Com `curl`
 
+`POST /avaliacao` exige um JWT do Cognito (ver [`docs/deploy.md`](docs/deploy.md) para criar um
+usuário de teste — a collection do Postman faz isso automaticamente):
+
 ```bash
 API_URL=https://0wywnn2xkg.execute-api.us-east-2.amazonaws.com
+CLIENT_ID=$(cd infra && terraform output -raw cognito_client_id)
+
+ID_TOKEN=$(aws cognito-idp initiate-auth \
+  --client-id "$CLIENT_ID" --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=estudante.teste,PASSWORD='SenhaForte#2026' \
+  --query 'AuthenticationResult.IdToken' --output text)
 
 # avaliação não crítica → 201, nivelUrgencia BAIXA, sem e-mail
 curl -i -X POST "$API_URL/avaliacao" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ID_TOKEN" \
   -d '{"descricao": "Aula excelente, professor muito didático", "nota": 9}'
 
 # avaliação crítica → 201, nivelUrgencia ALTA, dispara e-mail de alerta
 curl -i -X POST "$API_URL/avaliacao" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ID_TOKEN" \
   -d '{"descricao": "Aula com problemas graves de áudio", "nota": 1}'
+
+# sem token → 401 (comportamento esperado)
+curl -i -X POST "$API_URL/avaliacao" \
+  -H "Content-Type: application/json" \
+  -d '{"descricao": "Sem autenticação", "nota": 5}'
 ```
 
 ## Deploy

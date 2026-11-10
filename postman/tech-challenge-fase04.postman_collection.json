@@ -7,8 +7,132 @@
   "variable": [],
   "item": [
     {
+      "name": "00 - Autenticação (Cognito)",
+      "description": "POST /avaliacao exige um JWT do Cognito (JWT Authorizer no API Gateway). Rode as 3 requisições desta pasta em ordem, uma vez, antes de usar a pasta 01 — a terceira captura o token automaticamente na variável id_token, usada por todas as requisições de 01.",
+      "item": [
+        {
+          "name": "1. Criar usuário de teste (AWS SigV4 - admin)",
+          "request": {
+            "auth": {
+              "type": "awsv4",
+              "awsv4": [
+                { "key": "accessKey", "value": "{{aws_access_key_id}}", "type": "string" },
+                { "key": "secretKey", "value": "{{aws_secret_access_key}}", "type": "string" },
+                { "key": "sessionToken", "value": "{{aws_session_token}}", "type": "string" },
+                { "key": "region", "value": "{{aws_region}}", "type": "string" },
+                { "key": "service", "value": "cognito-idp", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-amz-json-1.1" },
+              { "key": "X-Amz-Target", "value": "AWSCognitoIdentityProviderService.AdminCreateUser" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UserPoolId\": \"{{cognito_user_pool_id}}\",\n  \"Username\": \"{{cognito_username}}\",\n  \"MessageAction\": \"SUPPRESS\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "https://cognito-idp.{{aws_region}}.amazonaws.com/"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Usuário criado ou já existente (200 ou 400 UsernameExistsException)', function () {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Definir senha permanente (AWS SigV4 - admin)",
+          "request": {
+            "auth": {
+              "type": "awsv4",
+              "awsv4": [
+                { "key": "accessKey", "value": "{{aws_access_key_id}}", "type": "string" },
+                { "key": "secretKey", "value": "{{aws_secret_access_key}}", "type": "string" },
+                { "key": "sessionToken", "value": "{{aws_session_token}}", "type": "string" },
+                { "key": "region", "value": "{{aws_region}}", "type": "string" },
+                { "key": "service", "value": "cognito-idp", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-amz-json-1.1" },
+              { "key": "X-Amz-Target", "value": "AWSCognitoIdentityProviderService.AdminSetUserPassword" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UserPoolId\": \"{{cognito_user_pool_id}}\",\n  \"Username\": \"{{cognito_username}}\",\n  \"Password\": \"{{cognito_password}}\",\n  \"Permanent\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "https://cognito-idp.{{aws_region}}.amazonaws.com/"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Senha definida com sucesso', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Obter token (InitiateAuth) — captura id_token automaticamente",
+          "description": "Chamada pública da API do Cognito (não exige AWS SigV4) — equivalente ao que um app cliente faria no login.",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-amz-json-1.1" },
+              { "key": "X-Amz-Target", "value": "AWSCognitoIdentityProviderService.InitiateAuth" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"AuthFlow\": \"USER_PASSWORD_AUTH\",\n  \"ClientId\": \"{{cognito_client_id}}\",\n  \"AuthParameters\": {\n    \"USERNAME\": \"{{cognito_username}}\",\n    \"PASSWORD\": \"{{cognito_password}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "https://cognito-idp.{{aws_region}}.amazonaws.com/"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Autenticação bem-sucedida', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('id_token', body.AuthenticationResult.IdToken);",
+                  "pm.test('Token capturado na variável id_token', function () {",
+                  "    pm.expect(pm.environment.get('id_token')).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "01 - Receber Avaliação (API Gateway)",
-      "description": "Endpoint público POST /avaliacao. Não exige autenticação (por desenho — ver docs/arquitetura.md).",
+      "description": "Endpoint público POST /avaliacao — desde a implementação do Cognito, exige um JWT válido (header Authorization: Bearer, herdado automaticamente desta pasta a partir da variável id_token capturada na pasta 00).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{id_token}}", "type": "string" }]
+      },
       "item": [
         {
           "name": "Avaliação válida - urgência BAIXA (nota 8)",
@@ -296,6 +420,34 @@
                 "exec": [
                   "pm.test('Status 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Erro - sem token (401)",
+          "description": "Confirma que o JWT Authorizer realmente protege o endpoint — sobrescreve o auth herdado da pasta com 'noauth' de propósito.",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Essa requisição não deve ser aceita\",\n  \"nota\": 5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{api_base_url}}/avaliacao"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
                   "});"
                 ]
               }
