@@ -1,7 +1,7 @@
 variable "regiao" {
   description = "Região AWS onde os recursos de bootstrap serão criados"
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "prefixo" {

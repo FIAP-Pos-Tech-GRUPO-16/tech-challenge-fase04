@@ -1,7 +1,7 @@
 variable "regiao" {
-  description = "Região AWS onde os recursos serão criados"
+  description = "Região AWS onde os recursos serão criados. Conta usa a 'nova experiência AWS' (sign-up social, baseada em projeto) — todo recurso regional é travado na região única do projeto, sem exceção."
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "prefixo" {

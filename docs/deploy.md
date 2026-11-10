@@ -18,7 +18,8 @@ sem access keys guardadas como secret.
 ```
 aws configure
 ```
-Informe access key, secret key e a região (`us-east-1`, igual ao padrão do projeto).
+Informe access key, secret key e a região (`us-east-2`, igual ao padrão do projeto — a conta usa a
+"nova experiência AWS", que trava todos os recursos regionais numa única região por projeto).
 
 ## 2. Bootstrap do state remoto (uma única vez)
 
