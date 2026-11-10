@@ -28,7 +28,8 @@
         <junit.version>5.11.3</junit.version>
         <assertj.version>3.26.3</assertj.version>
         <mockito.version>5.14.2</mockito.version>
-        <aws-sdk.version>2.46.7</aws-sdk.version>
+        <aws-sdk.version>2.57.12</aws-sdk.version>
+        <crac.version>1.5.0</crac.version>
         <jackson.version>2.19.0</jackson.version>
         <testcontainers.version>1.21.3</testcontainers.version>
         <spring-boot.version>3.5.3</spring-boot.version>
@@ -102,6 +103,11 @@
                 <groupId>com.amazonaws</groupId>
                 <artifactId>aws-lambda-java-events</artifactId>
                 <version>${aws-lambda-java-events.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.crac</groupId>
+                <artifactId>crac</artifactId>
+                <version>${crac.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

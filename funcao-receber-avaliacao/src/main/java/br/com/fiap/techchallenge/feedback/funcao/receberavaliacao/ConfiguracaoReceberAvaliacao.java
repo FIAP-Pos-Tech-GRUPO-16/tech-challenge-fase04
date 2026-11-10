@@ -5,11 +5,14 @@ import br.com.fiap.techchallenge.feedback.aplicacao.porta.PublicadorEvento;
 import br.com.fiap.techchallenge.feedback.aplicacao.porta.RepositorioAvaliacao;
 import br.com.fiap.techchallenge.feedback.infraestrutura.dynamodb.RepositorioAvaliacaoDynamoDb;
 import br.com.fiap.techchallenge.feedback.infraestrutura.eventbridge.PublicadorEventoEventBridge;
+import br.com.fiap.techchallenge.feedback.infraestrutura.snapstart.GanchoPosRestauracaoSnapStart;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -31,18 +34,32 @@ class ConfiguracaoReceberAvaliacao {
     }
 
     @Bean
-    DynamoDbEnhancedClient clienteDynamoDbIntensificado() {
+    AwsCredentialsProvider provedorCredenciais() {
+        return DefaultCredentialsProvider.create();
+    }
+
+    @Bean
+    DynamoDbEnhancedClient clienteDynamoDbIntensificado(AwsCredentialsProvider provedorCredenciais) {
         DynamoDbClient clienteBaixoNivel = DynamoDbClient.builder()
             .httpClientBuilder(UrlConnectionHttpClient.builder())
+            .credentialsProvider(provedorCredenciais)
             .build();
         return DynamoDbEnhancedClient.builder().dynamoDbClient(clienteBaixoNivel).build();
     }
 
     @Bean
-    EventBridgeClient clienteEventBridge() {
+    EventBridgeClient clienteEventBridge(AwsCredentialsProvider provedorCredenciais) {
         return EventBridgeClient.builder()
             .httpClientBuilder(UrlConnectionHttpClient.builder())
+            .credentialsProvider(provedorCredenciais)
             .build();
+    }
+
+    // Gancho do AWS Lambda SnapStart: na restauração do snapshot, renova as credenciais da
+    // execution role e aquece os clientes AWS SDK desta função (ver javadoc da classe).
+    @Bean
+    GanchoPosRestauracaoSnapStart ganchoPosRestauracaoSnapStart(AwsCredentialsProvider provedorCredenciais) {
+        return new GanchoPosRestauracaoSnapStart(provedorCredenciais, DynamoDbClient.class, EventBridgeClient.class);
     }
 
     @Bean

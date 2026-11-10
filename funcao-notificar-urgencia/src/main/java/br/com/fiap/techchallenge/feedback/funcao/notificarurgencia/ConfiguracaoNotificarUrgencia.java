@@ -5,10 +5,13 @@ import br.com.fiap.techchallenge.feedback.aplicacao.porta.EnviadorEmail;
 import br.com.fiap.techchallenge.feedback.infraestrutura.ses.EnviadorEmailSes;
 import br.com.fiap.techchallenge.feedback.infraestrutura.ses.FornecedorEmailAdministrador;
 import br.com.fiap.techchallenge.feedback.infraestrutura.ses.FornecedorEmailAdministradorSsm;
+import br.com.fiap.techchallenge.feedback.infraestrutura.snapstart.GanchoPosRestauracaoSnapStart;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.ssm.SsmClient;
@@ -28,13 +31,31 @@ class ConfiguracaoNotificarUrgencia {
     }
 
     @Bean
-    SesV2Client clienteSes() {
-        return SesV2Client.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+    AwsCredentialsProvider provedorCredenciais() {
+        return DefaultCredentialsProvider.create();
     }
 
     @Bean
-    SsmClient clienteParametro() {
-        return SsmClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+    SesV2Client clienteSes(AwsCredentialsProvider provedorCredenciais) {
+        return SesV2Client.builder()
+            .httpClientBuilder(UrlConnectionHttpClient.builder())
+            .credentialsProvider(provedorCredenciais)
+            .build();
+    }
+
+    @Bean
+    SsmClient clienteParametro(AwsCredentialsProvider provedorCredenciais) {
+        return SsmClient.builder()
+            .httpClientBuilder(UrlConnectionHttpClient.builder())
+            .credentialsProvider(provedorCredenciais)
+            .build();
+    }
+
+    // Gancho do AWS Lambda SnapStart: na restauração do snapshot, renova as credenciais da
+    // execution role e aquece os clientes AWS SDK desta função (ver javadoc da classe).
+    @Bean
+    GanchoPosRestauracaoSnapStart ganchoPosRestauracaoSnapStart(AwsCredentialsProvider provedorCredenciais) {
+        return new GanchoPosRestauracaoSnapStart(provedorCredenciais, SesV2Client.class, SsmClient.class);
     }
 
     @Bean
