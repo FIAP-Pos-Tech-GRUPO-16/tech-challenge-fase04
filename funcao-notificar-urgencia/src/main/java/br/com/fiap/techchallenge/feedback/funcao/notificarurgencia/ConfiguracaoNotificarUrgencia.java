@@ -7,7 +7,6 @@ import br.com.fiap.techchallenge.feedback.infraestrutura.ses.FornecedorEmailAdmi
 import br.com.fiap.techchallenge.feedback.infraestrutura.ses.FornecedorEmailAdministradorSsm;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -39,19 +38,14 @@ class ConfiguracaoNotificarUrgencia {
     }
 
     @Bean
-    FornecedorEmailAdministrador fornecedorEmailAdministrador(
-        SsmClient clienteParametro,
-        @Value("${app.ssm.parametro-email-admin}") String nomeParametro
-    ) {
+    FornecedorEmailAdministrador fornecedorEmailAdministrador(SsmClient clienteParametro) {
+        String nomeParametro = variavelAmbiente("SSM_PARAMETRO_EMAIL_ADMIN", "/tech-challenge-fase04/email-admin");
         return new FornecedorEmailAdministradorSsm(clienteParametro, nomeParametro);
     }
 
     @Bean
-    EnviadorEmail enviadorEmail(
-        SesV2Client clienteSes,
-        FornecedorEmailAdministrador fornecedorEmailAdministrador,
-        @Value("${app.ses.remetente}") String remetente
-    ) {
+    EnviadorEmail enviadorEmail(SesV2Client clienteSes, FornecedorEmailAdministrador fornecedorEmailAdministrador) {
+        String remetente = variavelAmbiente("SES_REMETENTE", "no-reply@tech-challenge-fase04.fiap.com.br");
         return new EnviadorEmailSes(clienteSes, fornecedorEmailAdministrador, remetente);
     }
 
@@ -63,5 +57,13 @@ class ConfiguracaoNotificarUrgencia {
     @Bean
     Function<String, String> notificarUrgencia(NotificarUrgenciaCasoDeUso casoDeUso, ObjectMapper mapeadorJson) {
         return new HandlerNotificarUrgencia(casoDeUso, mapeadorJson);
+    }
+
+    // @Value("${...}") em parâmetros de método @Bean não é resolvido pelo bootstrap do
+    // FunctionInvoker (Spring Cloud Function no Lambda) — lendo a variável de ambiente
+    // diretamente, que é o mecanismo nativo de configuração do Lambda de qualquer forma.
+    private static String variavelAmbiente(String nome, String valorPadrao) {
+        String valor = System.getenv(nome);
+        return valor != null ? valor : valorPadrao;
     }
 }

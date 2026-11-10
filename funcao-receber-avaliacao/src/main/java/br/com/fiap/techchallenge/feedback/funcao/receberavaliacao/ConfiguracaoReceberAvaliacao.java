@@ -8,7 +8,6 @@ import br.com.fiap.techchallenge.feedback.infraestrutura.eventbridge.PublicadorE
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -47,21 +46,24 @@ class ConfiguracaoReceberAvaliacao {
     }
 
     @Bean
-    RepositorioAvaliacao repositorioAvaliacao(
-        DynamoDbEnhancedClient clienteIntensificado,
-        @Value("${app.dynamodb.tabela-avaliacoes}") String nomeTabela
-    ) {
+    RepositorioAvaliacao repositorioAvaliacao(DynamoDbEnhancedClient clienteIntensificado) {
+        String nomeTabela = variavelAmbiente("TABELA_AVALIACOES", "avaliacoes");
         return new RepositorioAvaliacaoDynamoDb(clienteIntensificado, nomeTabela);
     }
 
     @Bean
-    PublicadorEvento publicadorEvento(
-        EventBridgeClient clienteEventBridge,
-        ObjectMapper mapeadorJson,
-        @Value("${app.eventbridge.nome-barramento}") String nomeBarramento,
-        @Value("${app.eventbridge.origem}") String origem
-    ) {
+    PublicadorEvento publicadorEvento(EventBridgeClient clienteEventBridge, ObjectMapper mapeadorJson) {
+        String nomeBarramento = variavelAmbiente("EVENTBRIDGE_BARRAMENTO", "default");
+        String origem = variavelAmbiente("EVENTBRIDGE_ORIGEM", "tech-challenge.feedback");
         return new PublicadorEventoEventBridge(clienteEventBridge, nomeBarramento, origem, mapeadorJson);
+    }
+
+    // @Value("${...}") em parâmetros de método @Bean não é resolvido pelo bootstrap do
+    // FunctionInvoker (Spring Cloud Function no Lambda) — lendo a variável de ambiente
+    // diretamente, que é o mecanismo nativo de configuração do Lambda de qualquer forma.
+    private static String variavelAmbiente(String nome, String valorPadrao) {
+        String valor = System.getenv(nome);
+        return valor != null ? valor : valorPadrao;
     }
 
     @Bean
