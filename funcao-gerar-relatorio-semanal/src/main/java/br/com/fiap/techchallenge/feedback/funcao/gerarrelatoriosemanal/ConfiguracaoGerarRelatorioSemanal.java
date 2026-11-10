@@ -3,6 +3,7 @@ package br.com.fiap.techchallenge.feedback.funcao.gerarrelatoriosemanal;
 import br.com.fiap.techchallenge.feedback.aplicacao.casodeuso.GerarRelatorioSemanalCasoDeUso;
 import br.com.fiap.techchallenge.feedback.aplicacao.porta.EnviadorEmail;
 import br.com.fiap.techchallenge.feedback.aplicacao.porta.RepositorioAvaliacao;
+import br.com.fiap.techchallenge.feedback.infraestrutura.aws.FabricaClientesAws;
 import br.com.fiap.techchallenge.feedback.infraestrutura.dynamodb.RepositorioAvaliacaoDynamoDb;
 import br.com.fiap.techchallenge.feedback.infraestrutura.ses.EnviadorEmailSes;
 import br.com.fiap.techchallenge.feedback.infraestrutura.ses.FornecedorEmailAdministrador;
@@ -10,10 +11,7 @@ import br.com.fiap.techchallenge.feedback.infraestrutura.ses.FornecedorEmailAdmi
 import br.com.fiap.techchallenge.feedback.infraestrutura.snapstart.GanchoPosRestauracaoSnapStart;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.ssm.SsmClient;
@@ -30,40 +28,30 @@ import java.util.function.Function;
 class ConfiguracaoGerarRelatorioSemanal {
 
     @Bean
-    AwsCredentialsProvider provedorCredenciais() {
-        return DefaultCredentialsProvider.create();
+    FabricaClientesAws fabricaClientesAws() {
+        return new FabricaClientesAws();
     }
 
     @Bean
-    DynamoDbEnhancedClient clienteDynamoDbIntensificado(AwsCredentialsProvider provedorCredenciais) {
-        DynamoDbClient clienteBaixoNivel = DynamoDbClient.builder()
-            .httpClientBuilder(UrlConnectionHttpClient.builder())
-            .credentialsProvider(provedorCredenciais)
-            .build();
-        return DynamoDbEnhancedClient.builder().dynamoDbClient(clienteBaixoNivel).build();
+    DynamoDbEnhancedClient clienteDynamoDbIntensificado(FabricaClientesAws fabrica) {
+        return fabrica.dynamoDbIntensificado();
     }
 
     @Bean
-    SesV2Client clienteSes(AwsCredentialsProvider provedorCredenciais) {
-        return SesV2Client.builder()
-            .httpClientBuilder(UrlConnectionHttpClient.builder())
-            .credentialsProvider(provedorCredenciais)
-            .build();
+    SesV2Client clienteSes(FabricaClientesAws fabrica) {
+        return fabrica.ses();
     }
 
     @Bean
-    SsmClient clienteParametro(AwsCredentialsProvider provedorCredenciais) {
-        return SsmClient.builder()
-            .httpClientBuilder(UrlConnectionHttpClient.builder())
-            .credentialsProvider(provedorCredenciais)
-            .build();
+    SsmClient clienteParametro(FabricaClientesAws fabrica) {
+        return fabrica.ssm();
     }
 
     // Gancho do AWS Lambda SnapStart: na restauração do snapshot, renova as credenciais da
     // execution role e aquece os clientes AWS SDK desta função (ver javadoc da classe).
     @Bean
-    GanchoPosRestauracaoSnapStart ganchoPosRestauracaoSnapStart(AwsCredentialsProvider provedorCredenciais) {
-        return new GanchoPosRestauracaoSnapStart(provedorCredenciais, DynamoDbClient.class, SesV2Client.class, SsmClient.class);
+    GanchoPosRestauracaoSnapStart ganchoPosRestauracaoSnapStart(FabricaClientesAws fabrica) {
+        return fabrica.registrarGanchoSnapStart(DynamoDbClient.class, SesV2Client.class, SsmClient.class);
     }
 
     @Bean
