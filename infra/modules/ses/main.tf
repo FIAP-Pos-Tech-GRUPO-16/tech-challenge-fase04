@@ -12,6 +12,10 @@ resource "aws_sesv2_email_identity" "remetente" {
 }
 
 resource "aws_sesv2_email_identity" "destinatario_inicial" {
+  # Evita tentar criar a mesma identidade duas vezes quando remetente e destinatário são o
+  # mesmo e-mail (cenário comum para este desafio).
+  count = var.email_admin_inicial == var.email_remetente ? 0 : 1
+
   email_identity = var.email_admin_inicial
 
   tags = {
