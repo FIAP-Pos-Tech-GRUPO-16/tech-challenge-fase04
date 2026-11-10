@@ -1,8 +1,10 @@
 name: Deploy
 
+# Disparo manual apenas (workflow_dispatch): o job de terraform depende do secret AWS_ROLE_ARN,
+# que só existe depois do primeiro apply manual (ver docs/deploy.md, Fase 6). Antes disso, deixar
+# em push automático só deixaria o commit vermelho sem necessidade. Depois que a conta AWS estiver
+# configurada, dá para voltar a disparar em push se o grupo preferir.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       aplicar:
@@ -75,6 +77,6 @@ jobs:
         run: terraform plan -out=tfplan
 
       - name: Terraform apply
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.aplicar == 'true'
+        if: github.event.inputs.aplicar == 'true'
         working-directory: infra
         run: terraform apply -auto-approve tfplan

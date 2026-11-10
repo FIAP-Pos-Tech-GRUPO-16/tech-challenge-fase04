@@ -61,27 +61,37 @@ Terraform cria os recursos, mas duas confirmações só chegam por e-mail e prec
    Confirmation" para o admin. Sem confirmar, os alarmes disparam mas o e-mail de alerta não
    chega.
 
-## 5. Configurar o deploy automatizado (GitHub Actions)
+## 5. Configurar os secrets do GitHub Actions
 
-Depois do primeiro `apply`, pegue a role de deploy criada:
+Dois grupos de secret, em momentos diferentes (**Settings → Secrets and variables → Actions**):
+
+**Já pode cadastrar agora, independe de ter conta AWS** (necessário para o workflow `CI` passar):
+
+| Secret | Valor |
+|---|---|
+| `LOCALSTACK_AUTH_TOKEN` | token de uma conta gratuita em app.localstack.cloud |
+
+```
+gh secret set LOCALSTACK_AUTH_TOKEN --body "<token>"
+```
+
+**Só depois do primeiro `apply` manual** (necessário para o workflow `Deploy` funcionar):
 
 ```
 terraform output arn_role_deploy_github_actions
 ```
-
-No repositório GitHub, em **Settings → Secrets and variables → Actions**, cadastre:
 
 | Secret | Valor |
 |---|---|
 | `AWS_ROLE_ARN` | saída do comando acima |
 | `EMAIL_ADMIN_INICIAL` | mesmo e-mail usado no apply manual |
 | `EMAIL_REMETENTE` | mesmo e-mail remetente usado no apply manual |
-| `LOCALSTACK_AUTH_TOKEN` | token de uma conta gratuita em app.localstack.cloud (só para os testes de integração do CI) |
 
-A partir daqui, todo push em `main` builda os 3 jars e roda `terraform plan` automaticamente
-(`.github/workflows/deploy.yml`). O `terraform apply` **não roda sozinho** — é preciso disparar o
-workflow manualmente (aba Actions → Deploy → Run workflow, marcando a opção "aplicar"), para não
-gastar créditos de cloud em pushes não intencionais.
+O workflow `Deploy` (`.github/workflows/deploy.yml`) é **disparo manual** (`workflow_dispatch`):
+aba Actions → Deploy → Run workflow. Sem marcar a opção "aplicar", roda só `terraform plan`
+(seguro, não altera nada); marcando, roda o `apply` de verdade. Fica manual de propósito — até a
+conta AWS estar configurada ele falharia em todo push automático, e mesmo depois, disparar
+`apply` continuamente a cada push gastaria créditos de cloud sem necessidade.
 
 ## 6. Smoke test pós-deploy
 
