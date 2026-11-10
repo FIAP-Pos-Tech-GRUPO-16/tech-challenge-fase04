@@ -31,7 +31,6 @@ module "iam" {
   arn_identidade_ses_remetente = module.ses.arn_identidade_remetente
   arn_parametro_email_admin    = module.ssm.arn_parametro
   nome_barramento              = local.nome_barramento
-  repositorio_github           = var.repositorio_github
 }
 
 module "funcao_receber_avaliacao" {

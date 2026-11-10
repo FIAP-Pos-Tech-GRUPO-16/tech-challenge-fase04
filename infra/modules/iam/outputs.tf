@@ -9,7 +9,3 @@ output "arn_role_notificar_urgencia" {
 output "arn_role_gerar_relatorio_semanal" {
   value = aws_iam_role.gerar_relatorio_semanal.arn
 }
-
-output "arn_role_deploy_github_actions" {
-  value = aws_iam_role.deploy_github_actions.arn
-}

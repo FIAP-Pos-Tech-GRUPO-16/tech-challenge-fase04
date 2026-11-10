@@ -37,9 +37,3 @@ variable "timeout_funcao_segundos" {
   type        = number
   default     = 30
 }
-
-variable "repositorio_github" {
-  description = "Repositório GitHub (formato org/repo) autorizado a assumir a role de deploy via OIDC"
-  type        = string
-  default     = "FIAP-Pos-Tech-GRUPO-16/tech-challenge-fase04"
-}

@@ -11,8 +11,3 @@ output "url_dashboard" {
 output "nome_tabela_avaliacoes" {
   value = module.dynamodb.nome_tabela
 }
-
-output "arn_role_deploy_github_actions" {
-  description = "ARN da role assumida pelo GitHub Actions via OIDC — configurar como secret AWS_ROLE_ARN no repositório"
-  value       = module.iam.arn_role_deploy_github_actions
-}
