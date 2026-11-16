@@ -39,6 +39,7 @@ e-mail para o administrador (`var.email_admin_inicial`):
 | `<funcao>-throttles` | Qualquer throttling em uma função nos últimos 5 minutos |
 | `<funcao>-duracao-proxima-do-timeout` | Duração máxima > 80% do timeout configurado |
 | `dlq-<alvo>-com-mensagens` | Qualquer mensagem visível em uma DLQ — indica falha que sobreviveu ao retry |
+| `api-gateway-5xx` | Qualquer resposta 5xx no API Gateway nos últimos 5 minutos — cobre falhas na camada de integração/API que não aparecem como `Errors` do Lambda |
 
 > A inscrição por e-mail do SNS exige confirmação manual (a AWS envia um link de confirmação para
 > a caixa de entrada do administrador) — igual à verificação de identidade do SES. Sem confirmar,

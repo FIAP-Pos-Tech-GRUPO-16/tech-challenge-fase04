@@ -90,9 +90,11 @@ Ver [`funcoes.md`](funcoes.md) para o detalhamento de cada função (gatilho, en
 - **Resiliência de invocação assíncrona**: tanto a notificação de urgência quanto o relatório
   semanal são alvos assíncronos do EventBridge, cada um com política de retry (2 tentativas) e
   uma DLQ (SQS) dedicada — nenhuma falha é descartada silenciosamente.
-- **Sem autenticação no endpoint público.** O enunciado não exige login para o estudante enviar
-  feedback; a defesa contra abuso é um limite de taxa (throttling) no estágio do API Gateway.
-  Documentado como possível evolução futura.
+- **Endpoint público autenticado via Cognito, com throttling como camada complementar.** O
+  enunciado não exige login para o estudante enviar feedback, mas a autenticação foi implementada
+  mesmo assim (ver [seção dedicada mais abaixo](#autenticação-no-endpoint-público-cognito--jwt-authorizer)).
+  Além do JWT Authorizer, o estágio do API Gateway tem um limite de taxa (throttling) como defesa
+  adicional contra abuso, mesmo com autenticação já exigida.
 
 ## Segurança e governança de acesso
 

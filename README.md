@@ -36,7 +36,7 @@ e relatório semanal consolidado por e-mail.
 
 ## O problema e o objetivo
 
-Enunciado completo em [`docs/ADJT-Fase4-Tech-Challenge.pdf`](docs/ADJT-Fase4-Tech-Challenge.pdf).
+Enunciado completo em [`docs/ADJT - Fase 4 - Tech Challenge_rev.pdf`](docs/ADJT%20-%20Fase%204%20-%20Tech%20Challenge_rev.pdf).
 
 Para garantir a qualidade dos cursos online, estudantes precisam poder avaliar as aulas, e
 administradores precisam acompanhar rapidamente a satisfação da turma. O sistema precisa:
