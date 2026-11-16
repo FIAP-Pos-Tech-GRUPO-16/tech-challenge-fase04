@@ -7,6 +7,7 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -47,6 +48,8 @@ class HandlerReceberAvaliacao implements Function<APIGatewayV2HTTPEvent, APIGate
         RequisicaoAvaliacao corpo;
         try {
             corpo = mapeadorJson.readValue(requisicao.getBody(), RequisicaoAvaliacao.class);
+        } catch (UnrecognizedPropertyException e) {
+            throw new CorpoRequisicaoInvalidoException("Campo não reconhecido: " + e.getPropertyName());
         } catch (JsonProcessingException e) {
             throw new CorpoRequisicaoInvalidoException("Corpo da requisição não é um JSON válido");
         }

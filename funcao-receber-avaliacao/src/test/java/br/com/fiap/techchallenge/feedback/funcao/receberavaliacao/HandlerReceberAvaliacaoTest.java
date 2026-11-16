@@ -62,6 +62,20 @@ class HandlerReceberAvaliacaoTest {
         APIGatewayV2HTTPResponse resposta = handler.apply(requisicaoCom("{descricao: invalido"));
 
         assertThat(resposta.getStatusCode()).isEqualTo(400);
+        assertThat(resposta.getBody()).contains("não é um JSON válido");
+    }
+
+    @Test
+    void deveResponderComMensagemEspecificaQuandoCampoDesconhecido() {
+        APIGatewayV2HTTPResponse resposta = handler.apply(requisicaoCom("""
+            {"descricao": "Aula boa", "nota": 8, "origem": "app-mobile"}
+            """));
+
+        assertThat(resposta.getStatusCode()).isEqualTo(400);
+        assertThat(resposta.getBody())
+            .contains("Campo não reconhecido")
+            .contains("origem")
+            .doesNotContain("não é um JSON válido");
     }
 
     @Test
