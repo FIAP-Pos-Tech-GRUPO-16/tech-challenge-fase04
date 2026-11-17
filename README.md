@@ -270,8 +270,10 @@ administrador. Detalhes em [`docs/monitoramento.md`](docs/monitoramento.md).
 
 ## Integrantes do grupo
 
-- Lucas Walim da Silva
-- Pamela Mendes Ribeiro
-- Rafael Oliveira Rodrigues Valle
-- Rodrigo Eufrásio Daniel
-- Rodrigo Cavalcante de Barros
+| Nome | RM |
+|---|---|
+| Lucas Walim da Silva | RM372423 |
+| Pamela Mendes Ribeiro | RM373293 |
+| Rafael Oliveira Rodrigues Valle | RM372441 |
+| Rodrigo Cavalcante de Barros | RM370811 |
+| Rodrigo Eufrásio Daniel | RM371782 |
