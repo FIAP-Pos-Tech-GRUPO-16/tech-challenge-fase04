@@ -348,6 +348,7 @@ resource "aws_codepipeline" "deploy" {
         file_paths {
           includes = [
             "pom.xml",
+            ".mvn/**",
             "modulo-*/**",
             "funcao-*/**",
             "infra/**",
