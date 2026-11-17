@@ -1,0 +1,32 @@
+# Executado pelo CodeBuild (projeto tech-challenge-fase04-deploy) a cada push na main.
+# Se os testes unitários falharem, o build para antes do Terraform e nada é implantado.
+version: 0.2
+
+env:
+  variables:
+    TERRAFORM_VERSION: "1.17.1"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+    commands:
+      - curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+      - unzip -q -o /tmp/terraform.zip -d /usr/local/bin
+      - terraform version
+      # O pom pai usa maven-toolchains-plugin (exige um JDK 21 declarado em toolchains.xml).
+      - mkdir -p ~/.m2
+      - printf '<toolchains><toolchain><type>jdk</type><provides><version>21</version></provides><configuration><jdkHome>%s</jdkHome></configuration></toolchain></toolchains>' "$JAVA_HOME" > ~/.m2/toolchains.xml
+
+  build:
+    commands:
+      - echo "Testes unitários + empacotamento das 3 funções (jars sombreados)"
+      - mvn -B package
+      - cd infra
+      - terraform init -input=false -backend-config=backend.hcl
+      - terraform plan -input=false -out=tfplan
+      - terraform apply -input=false tfplan
+
+cache:
+  paths:
+    - /root/.m2/repository/**/*

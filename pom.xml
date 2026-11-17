@@ -24,6 +24,10 @@
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Build reprodutível: jars idênticos byte a byte para o mesmo código. Sem isso, cada
+             build gera um hash novo e o Terraform republicaria as 3 Lambdas (e refaria o
+             snapshot do SnapStart) em todo deploy, mesmo sem mudança de código. -->
+        <project.build.outputTimestamp>2026-11-10T00:00:00Z</project.build.outputTimestamp>
 
         <junit.version>5.11.3</junit.version>
         <assertj.version>3.26.3</assertj.version>

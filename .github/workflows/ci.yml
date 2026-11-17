@@ -59,3 +59,9 @@ jobs:
           terraform fmt -check -recursive
           terraform init -backend=false
           terraform validate
+
+      - name: Validar a stack do pipeline de deploy (infra/cicd)
+        working-directory: infra/cicd
+        run: |
+          terraform init -backend=false
+          terraform validate
