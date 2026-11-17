@@ -45,18 +45,30 @@ administrar).
 
 ## Modelo de cloud escolhido
 
-**AWS, 100% serverless.** Nenhum componente exige provisionamento ou gestão de servidor:
+**AWS, 100% serverless.** Nenhum componente exige provisionamento ou gestão de servidor.
+
+- **Modelo de implantação:** nuvem pública (AWS), em uma única região (`us-east-2`, a região do
+  projeto na nova experiência AWS), com um único ambiente.
+- **Modelo de serviço:** FaaS (*Function as a Service*) para a lógica de negócio, com AWS Lambda,
+  combinado com serviços gerenciados (*Backend as a Service*) para tudo o que não é código do
+  grupo: banco (DynamoDB), mensageria (EventBridge), e-mail (SES), autenticação (Cognito),
+  configuração (SSM) e observabilidade (CloudWatch). O grupo escreve e mantém só as funções e o
+  Terraform; servidores, sistema operacional, escala e alta disponibilidade ficam com a AWS.
+- **Infraestrutura como código:** todo recurso é declarado em Terraform e aplicado pelo pipeline.
+
 
 | Camada | Serviço AWS | Por quê |
 |---|---|---|
 | Cômputo | Lambda | Paga por execução, escala automaticamente, atende à exigência obrigatória de serverless |
 | Entrada HTTP | API Gateway (HTTP API) | Mais barato e simples que REST API; proxy direto para Lambda |
+| Autenticação | Cognito + JWT Authorizer | Usuários gerenciados pela AWS; token validado no API Gateway antes de invocar a função |
 | Banco de dados | DynamoDB | Serverless nativo, sem VPC (cold start menor), paga por uso |
 | Mensageria/roteamento | EventBridge (bus + regra + Scheduler) | Desacopla ingestão de notificação; Scheduler cobre o agendamento semanal nativamente |
 | E-mail | SES | Serviço de e-mail transacional nativo da AWS |
 | Configuração | SSM Parameter Store | Guarda o e-mail do admin fora do código, mutável sem redeploy |
 | Observabilidade | CloudWatch (Logs, Alarmes, Dashboard) + SNS | Nativo, sem agente adicional para instalar |
-| Resiliência | SQS (DLQ) | Captura falhas de processamento assíncrono após as tentativas de retry |
+| Resiliência | SQS (DLQ) | Captura falhas de entrega e de execução das invocações assíncronas após as tentativas de retry |
+| Deploy contínuo | CodePipeline V2 + CodeBuild + CodeConnections | Deploy a cada push sem credencial AWS no GitHub (OIDC bloqueado pela SCP da conta) |
 
 ## As 3 funções serverless (responsabilidade única)
 
@@ -88,8 +100,11 @@ Ver [`funcoes.md`](funcoes.md) para o detalhamento de cada função (gatilho, en
   trocar o destinatário não exige novo deploy de código (o grupo já precisou trocar esse e-mail
   uma vez durante o desenvolvimento).
 - **Resiliência de invocação assíncrona**: tanto a notificação de urgência quanto o relatório
-  semanal são alvos assíncronos do EventBridge, cada um com política de retry (2 tentativas) e
-  uma DLQ (SQS) dedicada — nenhuma falha é descartada silenciosamente.
+  semanal são invocados de forma assíncrona (EventBridge e Scheduler), cada um com uma DLQ (SQS)
+  dedicada que cobre os dois pontos de falha: **entrega** (o EventBridge não conseguiu invocar a
+  Lambda: retry de 2 tentativas + `dead_letter_config` do alvo) e **execução** (a função lançou
+  exceção: retry assíncrono de 2 tentativas da própria Lambda + destino *on-failure* no alias
+  `live`). Nenhuma falha é descartada silenciosamente.
 - **Endpoint público autenticado via Cognito, com throttling como camada complementar.** O
   enunciado não exige login para o estudante enviar feedback, mas a autenticação foi implementada
   mesmo assim (ver [seção dedicada mais abaixo](#autenticação-no-endpoint-público-cognito--jwt-authorizer)).
@@ -101,11 +116,12 @@ Ver [`funcoes.md`](funcoes.md) para o detalhamento de cada função (gatilho, en
 - Cada função Lambda tem sua própria IAM role com política de privilégio mínimo — nenhuma delas
   tem permissão além do estritamente necessário (ex.: `notificar-urgencia` só pode `ses:SendEmail`
   e `ssm:GetParameter`, nunca `dynamodb:*`).
-- Deploy (`terraform apply`) é feito localmente por quem tiver `aws login` na conta — a conta usa
-  a "nova experiência AWS", cuja Service Control Policy nega `iam:CreateOpenIDConnectProvider`,
-  o que inviabiliza autenticação via OIDC para o GitHub Actions (avaliado e descartado após
-  confirmar o bloqueio em apply real). O GitHub Actions cuida de testes e build/empacotamento dos
-  jars automaticamente a cada push — nenhuma credencial AWS fica no CI.
+- Deploy automatizado sem credencial AWS fora da conta: a "nova experiência AWS" nega
+  `iam:CreateOpenIDConnectProvider` (confirmado em apply real), o que inviabiliza OIDC para o
+  GitHub Actions. Em vez de guardar uma access key de longa duração no GitHub, o pipeline roda
+  dentro da AWS (CodePipeline + CodeBuild) e lê o repositório via CodeConnections. A role de
+  deploy só gerencia roles IAM com o prefixo da aplicação e não consegue alterar a si mesma
+  (detalhes em [`deploy.md`](deploy.md#6-pipeline-de-deploy-contínuo-uma-única-vez)).
 - Dados em trânsito: HTTPS nativo (API Gateway, SES). Dados em repouso: criptografia padrão do
   DynamoDB e SQS (SSE gerenciado pela AWS).
 - Logs do CloudWatch com retenção limitada (30 dias) — evita acúmulo indefinido de dados.
@@ -142,8 +158,8 @@ snapshot) — medido em produção.
 
 ## Autenticação no endpoint público (Cognito + JWT Authorizer)
 
-O enunciado não exige autenticação em `POST /avaliacao` — foi implementada mesmo assim, a pedido
-explícito do usuário. Avaliação de alternativas antes de implementar (API Gateway HTTP API v2 não
+O enunciado não exige autenticação em `POST /avaliacao` — foi implementada mesmo assim, por
+decisão do grupo. Avaliação de alternativas antes de implementar (API Gateway HTTP API v2 não
 suporta API Keys/usage plans nativos — exclusivo de REST API v1):
 
 | Opção | O que muda | Trade-off |

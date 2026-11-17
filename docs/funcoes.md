@@ -32,10 +32,14 @@ teste.
 
 **Saída**:
 - `201 Created` com `{ "id": "uuid", "nivelUrgencia": "ALTA|MEDIA|BAIXA" }` quando válida.
-- `400 Bad Request` com `{ "mensagem": "..." }` quando a nota está fora de 0-10, a descrição está
-  vazia (ou acima de 1000 caracteres), o corpo está ausente ou o JSON é inválido.
+- `400 Bad Request` com `{ "mensagem": "..." }` quando a nota está fora de 0-10, o campo `nota`
+  está ausente, a descrição está vazia (ou acima de 1000 caracteres), o corpo está ausente, o JSON
+  é inválido ou traz um campo não reconhecido.
 - `401 Unauthorized` quando o token está ausente ou inválido (resposta do API Gateway, a função
   nunca chega a ser invocada).
+- `500 Internal Server Error` (gerado pelo API Gateway) se a gravação no DynamoDB ou a publicação no
+  EventBridge falhar: a função não engole o erro, a invocação falha e o alarme
+  `receber-avaliacao-erros` dispara.
 
 **Efeitos colaterais**: grava um item na tabela DynamoDB `avaliacoes`; publica o evento
 `AvaliacaoRecebida` (detail-type) no barramento EventBridge do projeto, já com o campo
@@ -63,9 +67,10 @@ barramento do projeto.
 ```
 
 **Saída**: string de confirmação (`"Avaliação processada: <id>"`). Se o evento vier malformado, a
-função lança exceção propositalmente — isso faz o EventBridge aplicar a política de retry e, se
-persistir, mover o evento para a DLQ (`PublicacaoEventoFalhouException`/`EventoInvalidoException`
-nunca são engolidas silenciosamente).
+função lança `EventoInvalidoException` propositalmente (nunca engole o erro). Como o EventBridge
+invoca a função de forma **assíncrona**, quem trata essa falha é a própria Lambda: faz mais 2
+tentativas e, se a função continuar falhando, o destino *on-failure* do alias `live` grava o evento
+original + o erro na DLQ `dlq-notificar-urgencia`.
 
 **Dados do e-mail de alerta** (conforme contrato do desafio): Descrição, Urgência, Data de envio.
 
@@ -73,12 +78,16 @@ nunca são engolidas silenciosamente).
 em cache — troca de destinatário tem efeito imediato); envia e-mail via SES.
 
 **IAM (privilégio mínimo)**: `ses:SendEmail`/`ses:SendRawEmail` na identidade remetente;
-`ssm:GetParameter` no parâmetro do e-mail do admin.
+`ssm:GetParameter` no parâmetro do e-mail do admin; `sqs:SendMessage` na própria DLQ (destino de
+falha).
 
 **Variáveis de ambiente**: `SES_REMETENTE`, `SSM_PARAMETRO_EMAIL_ADMIN`.
 
-**Resiliência**: alvo assíncrono do EventBridge com retry (2 tentativas) + DLQ dedicada
-(`dlq-notificar-urgencia`).
+**Resiliência**: a DLQ dedicada (`dlq-notificar-urgencia`) recebe os dois tipos de falha:
+- **Falha de entrega** (o EventBridge não conseguiu invocar a Lambda): retry do alvo (2 tentativas)
+  + `dead_letter_config` da regra.
+- **Falha de execução** (a função lançou exceção): retry assíncrono da Lambda (2 tentativas) +
+  destino *on-failure* (`aws_lambda_function_event_invoke_config`).
 
 ---
 
@@ -104,13 +113,17 @@ quantidade de avaliações por nível de urgência.
 e-mail via SES.
 
 **IAM (privilégio mínimo)**: `dynamodb:Query` na tabela `avaliacoes` e no seu índice;
-`ses:SendEmail`/`ses:SendRawEmail`; `ssm:GetParameter`.
+`ses:SendEmail`/`ses:SendRawEmail`; `ssm:GetParameter`; `sqs:SendMessage` na própria DLQ.
 
 **Variáveis de ambiente**: `TABELA_AVALIACOES`, `SES_REMETENTE`, `SSM_PARAMETRO_EMAIL_ADMIN`.
 
-**Resiliência**: alvo assíncrono do EventBridge Scheduler com retry (2 tentativas) + DLQ dedicada
-(`dlq-relatorio-semanal`).
+**Resiliência**: mesma estratégia da `notificar-urgencia`, com a DLQ `dlq-relatorio-semanal`:
+falha de entrega pelo retry + `dead_letter_config` do Scheduler; falha de execução pelo retry
+assíncrono da Lambda + destino *on-failure*.
 
-**Teste manual sem esperar a semana**: `aws lambda invoke --function-name
-tech-challenge-fase04-gerar-relatorio-semanal --payload '{}' saida.json` (ver
-[`deploy.md`](deploy.md)).
+**Teste manual sem esperar a semana** (ver [`deploy.md`](deploy.md)):
+```
+aws lambda invoke --profile tech-challenge-fase04 \
+  --function-name tech-challenge-fase04-gerar-relatorio-semanal:live \
+  --cli-binary-format raw-in-base64-out --payload '{}' saida.json
+```

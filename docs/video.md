@@ -28,15 +28,17 @@ as configurações do projeto. Sugestão de roteiro (ajustar à vontade):
 - Mostrar um dos alarmes configurados (mesmo que em estado OK).
 
 ## 5. Build e testes automatizados (1-2 min)
-- Mostrar os pipelines `ci.yml` (testes unitários + integração + validação do Terraform) e
-  `deploy.yml` (empacotamento dos jars) rodando no GitHub Actions a cada push.
-- Explicar que o `terraform apply` é manual, feito localmente por quem tem acesso à conta AWS —
-  a conta usa a "nova experiência AWS", que bloqueia a criação de um provedor OIDC por política
-  de organização, então o CI não guarda nenhuma credencial AWS.
+- Mostrar o `ci.yml` (testes unitários + integração + validação do Terraform) rodando no GitHub
+  Actions a cada push.
+- Mostrar o pipeline `tech-challenge-fase04-deploy` no CodePipeline: o push na `main` dispara o
+  CodeBuild, que roda os testes, empacota as funções e faz o `terraform apply` sozinho.
+- Explicar por que o deploy roda dentro da AWS: a "nova experiência AWS" bloqueia o provedor OIDC
+  do GitHub Actions, e a alternativa (access key no GitHub) seria menos segura. Com
+  CodeConnections, nenhuma credencial AWS fica no GitHub.
 
 ## Checklist antes de gravar
 - [ ] Repositório com todo o código commitado e enviado.
-- [ ] Infraestrutura aplicada na AWS (passo manual, ver `deploy.md`).
+- [ ] Última execução do pipeline `tech-challenge-fase04-deploy` com sucesso.
 - [ ] SES e SNS com os e-mails de verificação/confirmação já clicados.
 - [ ] Pelo menos uma avaliação crítica e uma não crítica já enviadas, para o dashboard não
   aparecer vazio.

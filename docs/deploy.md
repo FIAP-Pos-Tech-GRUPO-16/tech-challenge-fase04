@@ -1,11 +1,24 @@
 # Instruções de deploy
 
-O `terraform apply` é **manual**, feito localmente por quem tiver acesso à conta AWS do projeto.
-A conta usa a "nova experiência AWS" (login social, estrutura de "projeto"), cuja Service Control
-Policy nega `iam:CreateOpenIDConnectProvider` — isso inviabiliza autenticação via OIDC para o
-GitHub Actions (testado e confirmado em apply real), então não existe deploy 100% automatizado a
-partir do CI para este tipo de conta. O GitHub Actions cuida do que não depende de credencial AWS:
-testes (unitários + integração) a cada push/PR e empacotamento dos jars das 3 funções.
+O deploy é **automatizado**: cada push na `main` que mexa em código ou infraestrutura dispara o
+pipeline `tech-challenge-fase04-deploy` (AWS CodePipeline + CodeBuild), que roda os testes
+unitários, empacota as 3 funções e aplica o Terraform de `infra/`. O GitHub Actions continua
+cuidando do CI (testes unitários + integração + validação do Terraform) a cada push/PR.
+
+Por que o pipeline roda **dentro da AWS** e não no GitHub Actions: a conta usa a "nova experiência
+AWS" (login social, estrutura de "projeto"), cuja Service Control Policy nega
+`iam:CreateOpenIDConnectProvider` (testado e confirmado em apply real). Sem OIDC, o GitHub Actions
+só entraria na AWS com uma access key de longa duração guardada como secret. Em vez disso, o
+sentido foi invertido: a AWS lê o repositório via **CodeConnections** (GitHub App) e o deploy roda
+com uma role da própria conta. Nenhuma credencial AWS fica no GitHub.
+
+```
+push na main ──► CodePipeline V2 (trigger por caminho: pom.xml, modulo-*, funcao-*, infra/)
+                    └─► CodeBuild: mvn package (com testes unitários) ──► terraform plan + apply
+```
+
+Os passos manuais abaixo (bootstrap, primeiro apply e criação do pipeline) são feitos **uma única
+vez**, localmente.
 
 ## 0. Pré-requisitos
 
@@ -111,7 +124,44 @@ aws cognito-idp admin-set-user-password \
 
 A collection do Postman (pasta 00) faz exatamente isso automaticamente — ver `postman/README.md`.
 
-## 6. Secret do GitHub Actions (CI)
+## 6. Pipeline de deploy contínuo (uma única vez)
+
+O pipeline fica numa stack Terraform separada (`infra/cicd/`, state próprio no mesmo bucket), para
+que o deploy da aplicação nunca altere o próprio pipeline:
+
+```
+cd infra/cicd
+terraform init -backend-config=backend.hcl
+terraform plan \
+  -var="email_admin_inicial=<email-do-admin>" \
+  -var="email_remetente=<email-remetente-verificado>" \
+  -out=tfplan
+terraform apply tfplan
+```
+
+Cria: a conexão `tech-challenge-fase04-github` (CodeConnections), o projeto CodeBuild
+`tech-challenge-fase04-deploy` (buildspec em `infra/cicd/buildspec.yml`), o pipeline
+`tech-challenge-fase04-deploy` (CodePipeline V2, execuções enfileiradas para nunca rodar dois
+applies ao mesmo tempo), o bucket de artefatos e as duas roles de serviço.
+
+**Aprovar a conexão com o GitHub (passo manual exigido pela AWS):** a conexão nasce `PENDING`.
+Console AWS → Developer Tools → Settings → **Connections** → `tech-challenge-fase04-github` →
+**Update pending connection** → instalar o app "AWS Connector for GitHub" na organização
+`FIAP-Pos-Tech-GRUPO-16` (exige admin da organização) com acesso ao repositório → **Connect**.
+Depois disso, Console → CodePipeline → `tech-challenge-fase04-deploy` → **Release change** roda a
+primeira execução (as seguintes são disparadas pelos pushes).
+
+**Permissões da role de deploy (`cicd-tech-challenge-fase04-codebuild-deploy`):** gerencia os
+serviços usados pela aplicação; no IAM, só pode mexer nas roles com prefixo
+`tech-challenge-fase04-*`, só pode anexar a policy gerenciada de logs do Lambda e só repassa roles
+para Lambda/Scheduler. As roles do próprio pipeline ficam fora desse prefixo (`cicd-*`), então o
+deploy não consegue ampliar as próprias permissões.
+
+**Builds reprodutíveis:** o pom pai fixa `project.build.outputTimestamp`, então o mesmo código
+gera jars idênticos byte a byte. Sem isso, todo deploy republicaria as 3 Lambdas (e refaria o
+snapshot do SnapStart) mesmo sem mudança de código.
+
+## 7. Secret do GitHub Actions (CI)
 
 Só um secret é necessário, independente de conta AWS — usado pelo workflow `CI` para rodar os
 testes de integração contra LocalStack:
@@ -120,10 +170,9 @@ testes de integração contra LocalStack:
 gh secret set LOCALSTACK_AUTH_TOKEN --body "<token de uma conta gratuita em app.localstack.cloud>"
 ```
 
-Não há secret de credencial AWS no GitHub: o workflow `deploy.yml` só builda e empacota os jars
-(não aplica infraestrutura).
+Não há secret de credencial AWS no GitHub: o deploy roda dentro da AWS (seção 6).
 
-## 7. Smoke test pós-deploy
+## 8. Smoke test pós-deploy
 
 ```
 API_URL=$(cd infra && terraform output -raw url_api)
@@ -156,7 +205,7 @@ Para testar o relatório semanal sem esperar a segunda-feira:
 ```
 aws lambda invoke \
   --profile tech-challenge-fase04 \
-  --function-name tech-challenge-fase04-gerar-relatorio-semanal \
+  --function-name tech-challenge-fase04-gerar-relatorio-semanal:live \
   --payload '{}' \
   --cli-binary-format raw-in-base64-out \
   saida.json
@@ -165,10 +214,30 @@ cat saida.json
 
 ## Atualizações de código (deploy incremental)
 
-Depois do setup inicial, qualquer mudança nas funções Lambda é aplicada rodando de novo, localmente:
-`mvn package` gera os jars → `terraform plan`/`apply` detecta o novo `source_code_hash` (hash do
-jar) → atualiza só a função que mudou. O workflow `deploy.yml` do GitHub Actions mantém os jars
-sempre buildados automaticamente a cada push, prontos para esse `apply` local.
+Depois do setup inicial, basta dar push na `main`. O pipeline gera os jars, o `terraform plan`
+detecta o novo `source_code_hash` (hash do jar) e atualiza só a função que mudou (nova versão
+publicada + alias `live` apontando para ela). Mudanças só em `docs/`, `README.md` ou `postman/`
+não disparam o pipeline. Acompanhar em Console → CodePipeline → `tech-challenge-fase04-deploy`, ou:
+
+```
+aws codepipeline list-pipeline-executions --pipeline-name tech-challenge-fase04-deploy \
+  --max-items 5 --profile tech-challenge-fase04
+```
+
+O apply local (seção 3) continua possível para emergências, desde que nenhuma execução do pipeline
+esteja rodando ao mesmo tempo (o lock do state no DynamoDB impede dois applies simultâneos).
+
+## Trocar o e-mail do administrador
+
+O destinatário dos alertas e do relatório é lido do SSM a cada invocação, então a troca não exige
+deploy de código. Em modo sandbox do SES, porém, o novo destinatário precisa estar verificado:
+
+1. Criar a identidade do novo e-mail no SES e clicar no link de verificação que a AWS envia:
+   `aws sesv2 create-email-identity --email-identity <novo-email> --profile tech-challenge-fase04`
+2. Depois de verificado, trocar o valor do parâmetro (o Terraform ignora mudanças nesse valor):
+   `aws ssm put-parameter --name /tech-challenge-fase04/email-admin --value <novo-email> --overwrite --profile tech-challenge-fase04`
+3. Para os alarmes operacionais, inscrever o novo e-mail no tópico SNS e confirmar o link:
+   `aws sns subscribe --topic-arn <arn do tópico tech-challenge-fase04-alertas-operacionais> --protocol email --notification-endpoint <novo-email> --profile tech-challenge-fase04`
 
 ## Troubleshooting: apply interrompido (rede caiu, lock travado)
 

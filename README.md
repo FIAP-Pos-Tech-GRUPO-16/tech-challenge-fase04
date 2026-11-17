@@ -94,7 +94,7 @@ Detalhamento completo, trade-offs e justificativas de cada escolha em
 | Cloud | AWS — Lambda (SnapStart), API Gateway (HTTP API + JWT Authorizer), Cognito, DynamoDB, EventBridge (bus + regra + Scheduler), SES, SSM Parameter Store, SQS (DLQ), CloudWatch (logs/alarmes/dashboard), SNS |
 | AWS SDK | AWS SDK for Java v2 (DynamoDB Enhanced Client, SESv2, EventBridge, SSM) |
 | Infraestrutura como código | Terraform 1.17 |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions (CI) + AWS CodePipeline/CodeBuild (deploy contínuo com Terraform) |
 | Build | Maven (multi-módulo) |
 | Testes | JUnit 5, AssertJ, Mockito, Testcontainers + LocalStack |
 | Testes de API | Postman (collection em [`postman/`](postman/)) |
@@ -111,8 +111,9 @@ tech-challenge-fase04/
 ├── funcao-notificar-urgencia/        (Lambda: alerta de urgência via EventBridge)
 ├── funcao-gerar-relatorio-semanal/   (Lambda: relatório semanal via EventBridge Scheduler)
 ├── infra/                            (Terraform: toda a infraestrutura AWS)
-│   └── bootstrap/                    (bucket S3 + tabela DynamoDB do state remoto)
-├── .github/workflows/                (ci.yml, deploy.yml)
+│   ├── bootstrap/                    (bucket S3 + tabela DynamoDB do state remoto)
+│   └── cicd/                         (pipeline de deploy: CodePipeline + CodeBuild + buildspec)
+├── .github/workflows/                (ci.yml)
 ├── postman/                          (collection + environment para testar a API real)
 └── docs/                             (arquitetura, deploy, monitoramento, funções, vídeo)
 ```
@@ -137,8 +138,9 @@ depende de Spring, AWS SDK ou qualquer framework; os casos de uso dependem só d
    dos últimos 7 dias (via índice do DynamoDB, sem Scan) e envia por e-mail: lista das avaliações,
    média das notas, quantidade por dia e por nível de urgência.
 5. O e-mail do administrador fica no **SSM Parameter Store** (nunca hardcoded) — trocar o
-   destinatário não exige novo deploy. Cada alvo assíncrono do EventBridge tem uma **DLQ** própria
-   (SQS), então nenhuma falha é descartada silenciosamente.
+   destinatário não exige novo deploy. Cada função assíncrona tem uma **DLQ** própria (SQS), que
+   recebe tanto falhas de entrega do EventBridge quanto falhas de execução da função (destino
+   *on-failure* da Lambda), então nenhuma falha é descartada silenciosamente.
 
 Documentação completa de cada função (gatilho, entrada/saída, variáveis de ambiente, IAM) em
 [`docs/funcoes.md`](docs/funcoes.md).
@@ -214,18 +216,20 @@ curl -i -X POST "$API_URL/avaliacao" \
 
 ## Deploy
 
-`terraform apply` é **manual**, local, por quem tiver acesso à conta AWS do projeto — a conta usa
-a "nova experiência AWS" (login social), cuja política de organização bloqueia a criação de
-provedor OIDC, o que inviabiliza autenticação via OIDC para o GitHub Actions. O CI
-(`.github/workflows/ci.yml`) roda testes e valida o Terraform a cada push, sem precisar de
-credencial AWS nenhuma; `deploy.yml` builda e empacota os jars das 3 funções automaticamente.
+Deploy **automatizado**: cada push na `main` que mexa em código ou infraestrutura dispara o
+pipeline `tech-challenge-fase04-deploy` (AWS CodePipeline V2 + CodeBuild), que roda os testes
+unitários, empacota as 3 funções e aplica o Terraform. O pipeline roda dentro da AWS e lê o
+repositório via CodeConnections porque a conta ("nova experiência AWS") bloqueia o provedor OIDC
+do GitHub Actions; assim nenhuma credencial AWS fica no GitHub. O CI (`.github/workflows/ci.yml`)
+roda testes unitários, testes de integração e a validação do Terraform a cada push/PR.
 
-Passo a passo completo (bootstrap do state remoto, primeiro apply, verificações de SES/SNS,
-smoke test) em [`docs/deploy.md`](docs/deploy.md).
+Passo a passo completo (bootstrap do state remoto, primeiro apply, criação do pipeline,
+verificações de SES/SNS, smoke test) em [`docs/deploy.md`](docs/deploy.md).
 
 ## Monitoramento
 
-Cada função e o endpoint têm logs estruturados no CloudWatch (retenção de 30 dias), um dashboard
+As funções escrevem logs estruturados em JSON (com `avaliacaoId`, `nivelUrgencia` etc. como campos
+próprios) e o endpoint tem log de acesso, todos no CloudWatch com retenção de 30 dias; há um dashboard
 único consolidando invocações/erros/duração/DLQs/DynamoDB/API Gateway, e alarmes (erro, throttling,
 duração perto do timeout, mensagens em DLQ, 5xx da API) publicando num tópico SNS com e-mail para o
 administrador. Detalhes em [`docs/monitoramento.md`](docs/monitoramento.md).
@@ -242,8 +246,9 @@ administrador. Detalhes em [`docs/monitoramento.md`](docs/monitoramento.md).
   `modulo-infraestrutura`.
 - **E-mail do administrador nunca fica hardcoded** (SSM Parameter Store, lido a cada invocação) —
   o grupo precisou trocar esse e-mail uma vez durante o desenvolvimento, sem precisar de redeploy.
-- **Resiliência de invocação assíncrona**: notificação de urgência e relatório semanal têm política
-  de retry + DLQ dedicada — nenhuma falha é descartada silenciosamente.
+- **Resiliência de invocação assíncrona**: notificação de urgência e relatório semanal têm retry +
+  DLQ dedicada, cobrindo falha de entrega (EventBridge/Scheduler) e falha de execução (destino
+  *on-failure* da Lambda) — nenhuma falha é descartada silenciosamente.
 - **IAM de privilégio mínimo**: cada função tem sua própria role, sem permissão além do
   estritamente necessário.
 - **AWS Lambda SnapStart** nas 3 funções: cold start caiu de ~3.7-4s para ~1.6s (medido em
