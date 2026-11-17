@@ -15,12 +15,16 @@ e relatório semanal consolidado por e-mail.
 > (região `us-east-2`). Teste direto com a [collection do Postman](postman/) ou com `curl` — ver
 > seção [Como testar](#como-testar).
 
+> 🎬 **Vídeo de demonstração**: https://www.youtube.com/watch?v=DZkw8Um0s2M · 📄 **Relatório de
+> entrega**: [`docs/Relatorio_Fase4_Grupo16.pdf`](docs/Relatorio_Fase4_Grupo16.pdf)
+
 ---
 
 ## Índice
 
 - [O problema e o objetivo](#o-problema-e-o-objetivo)
 - [Arquitetura](#arquitetura)
+- [Modelo de cloud](#modelo-de-cloud)
 - [Tecnologias](#tecnologias)
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Como funciona](#como-funciona)
@@ -28,8 +32,10 @@ e relatório semanal consolidado por e-mail.
 - [Como testar](#como-testar)
 - [Deploy](#deploy)
 - [Monitoramento](#monitoramento)
+- [Segurança e governança de acesso](#segurança-e-governança-de-acesso)
 - [Decisões de arquitetura — por quê](#decisões-de-arquitetura--por-quê)
 - [Documentação completa](#documentação-completa)
+- [Vídeo de demonstração](#vídeo-de-demonstração)
 - [Integrantes do grupo](#integrantes-do-grupo)
 
 ---
@@ -84,6 +90,32 @@ responsabilidade — ver [Como funciona](#como-funciona).
 
 Detalhamento completo, trade-offs e justificativas de cada escolha em
 [`docs/arquitetura.md`](docs/arquitetura.md).
+
+## Modelo de cloud
+
+**AWS, 100% serverless** — nenhum componente exige provisionar ou administrar servidor.
+
+- **Modelo de implantação:** nuvem pública (AWS), região única `us-east-2`, um único ambiente.
+- **Modelo de serviço:** FaaS (*Function as a Service*) com AWS Lambda para a lógica de negócio,
+  combinado com serviços gerenciados (*Backend as a Service*) para todo o resto: banco (DynamoDB),
+  mensageria e agendamento (EventBridge), e-mail (SES), autenticação (Cognito), configuração (SSM)
+  e observabilidade (CloudWatch). O grupo mantém só as funções e o Terraform; servidores, sistema
+  operacional, escala e alta disponibilidade ficam com a AWS.
+
+| Componente | Papel na solução |
+|---|---|
+| Lambda (Java 21 + SnapStart) | As 3 funções serverless |
+| API Gateway (HTTP API) | Expõe `POST /avaliacao` |
+| Cognito + JWT Authorizer | Autentica o estudante antes de invocar a função |
+| DynamoDB | Guarda as avaliações (índice por data para o relatório) |
+| EventBridge (barramento + regra + Scheduler) | Roteia avaliações críticas e agenda o relatório semanal |
+| SES | Envia o alerta de urgência e o relatório |
+| SSM Parameter Store | E-mail do administrador, fora do código |
+| SQS (DLQ) | Guarda eventos que falharam depois das novas tentativas |
+| CloudWatch + SNS | Logs, dashboard, alarmes e aviso por e-mail |
+| CodePipeline + CodeBuild | Deploy automatizado a cada push na `main` |
+
+Justificativa de cada escolha em [`docs/arquitetura.md`](docs/arquitetura.md#modelo-de-cloud-escolhido).
 
 ## Tecnologias
 
@@ -234,6 +266,22 @@ próprios) e o endpoint tem log de acesso, todos no CloudWatch com retenção de
 duração perto do timeout, mensagens em DLQ, 5xx da API) publicando num tópico SNS com e-mail para o
 administrador. Detalhes em [`docs/monitoramento.md`](docs/monitoramento.md).
 
+## Segurança e governança de acesso
+
+- **Autenticação:** `POST /avaliacao` exige JWT do Cognito, validado pelo API Gateway; contas só
+  são criadas pelo administrador (sem auto-cadastro público).
+- **IAM de privilégio mínimo:** uma role por função, só com as ações e recursos que ela usa
+  (ex.: `notificar-urgencia` não tem nenhum acesso ao DynamoDB).
+- **Governança do deploy:** nenhuma credencial AWS no GitHub (pipeline dentro da AWS, lendo o
+  repositório via CodeConnections); a role de deploy só altera roles com o prefixo da aplicação e
+  não consegue ampliar as próprias permissões.
+- **Dados:** HTTPS em trânsito; criptografia em repouso no DynamoDB (com PITR), SQS e bucket do
+  state; a descrição digitada pelo estudante não vai para o log; logs com retenção de 30 dias.
+- **Proteção e auditoria:** throttling no API Gateway, histórico do CloudTrail e políticas (SCPs)
+  gerenciadas pela AWS restringindo região e ações sensíveis.
+
+Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md#segurança-e-governança-de-acesso).
+
 ## Decisões de arquitetura — por quê
 
 - **3 funções com responsabilidade única** (acima do mínimo de 2 exigido): cada uma faz uma coisa
@@ -267,6 +315,16 @@ administrador. Detalhes em [`docs/monitoramento.md`](docs/monitoramento.md).
 | [`docs/funcoes.md`](docs/funcoes.md) | Gatilho, entrada/saída e IAM de cada função Lambda |
 | [`docs/video.md`](docs/video.md) | Roteiro do vídeo de demonstração |
 | [`postman/README.md`](postman/README.md) | Como usar a collection de testes |
+
+## Vídeo de demonstração
+
+https://www.youtube.com/watch?v=DZkw8Um0s2M
+
+Mostra a arquitetura, as funções serverless ativas no console AWS, as configurações do projeto e a
+aplicação funcionando de ponta a ponta. Na demonstração, o Postman faz o papel do aplicativo do
+estudante (chama `POST /avaliacao`); daí em diante tudo é automático — o alerta de urgência sai
+sem nenhuma ação manual, e o relatório semanal, acionado à mão no vídeo só para não esperar a
+segunda-feira, é disparado em produção pelo EventBridge Scheduler.
 
 ## Integrantes do grupo
 
