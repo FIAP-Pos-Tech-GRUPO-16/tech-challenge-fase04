@@ -309,7 +309,9 @@ resource "aws_codepipeline" "deploy" {
         ConnectionArn    = aws_codestarconnections_connection.github.arn
         FullRepositoryId = var.repositorio_github
         BranchName       = var.branch
-        DetectChanges    = "false" # quem decide quando rodar é o trigger abaixo
+        # Precisa ser "true": com "false" o CodePipeline ignora os commits novos, inclusive os que
+        # casam com o trigger abaixo (que só refina quais pushes disparam a execução).
+        DetectChanges = "true"
       }
     }
   }
