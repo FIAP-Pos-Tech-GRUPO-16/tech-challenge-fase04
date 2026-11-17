@@ -2,7 +2,14 @@ data "aws_caller_identity" "atual" {}
 data "aws_region" "atual" {}
 
 locals {
-  arn_barramento_eventos = "arn:aws:events:${data.aws_region.atual.name}:${data.aws_caller_identity.atual.account_id}:event-bus/${var.nome_barramento}"
+  prefixo_arn_regional = "${data.aws_region.atual.name}:${data.aws_caller_identity.atual.account_id}"
+
+  arn_barramento_eventos = "arn:aws:events:${local.prefixo_arn_regional}:event-bus/${var.nome_barramento}"
+
+  # ARNs das DLQs montados pelo nome (convenção do módulo eventbridge), pelo mesmo motivo do
+  # barramento: evitar dependência circular entre os módulos iam e eventbridge.
+  arn_dlq_notificar_urgencia = "arn:aws:sqs:${local.prefixo_arn_regional}:${var.prefixo}-dlq-notificar-urgencia"
+  arn_dlq_relatorio_semanal  = "arn:aws:sqs:${local.prefixo_arn_regional}:${var.prefixo}-dlq-relatorio-semanal"
 }
 
 # ---------------------------------------------------------------------------
@@ -75,6 +82,13 @@ data "aws_iam_policy_document" "notificar_urgencia" {
     actions   = ["ssm:GetParameter"]
     resources = [var.arn_parametro_email_admin]
   }
+
+  # Destino on-failure da invocação assíncrona: a Lambda usa esta role para gravar na DLQ.
+  statement {
+    sid       = "EnviarFalhaParaDLQ"
+    actions   = ["sqs:SendMessage"]
+    resources = [local.arn_dlq_notificar_urgencia]
+  }
 }
 
 resource "aws_iam_role_policy" "notificar_urgencia" {
@@ -117,6 +131,12 @@ data "aws_iam_policy_document" "gerar_relatorio_semanal" {
     sid       = "LerEmailAdmin"
     actions   = ["ssm:GetParameter"]
     resources = [var.arn_parametro_email_admin]
+  }
+
+  statement {
+    sid       = "EnviarFalhaParaDLQ"
+    actions   = ["sqs:SendMessage"]
+    resources = [local.arn_dlq_relatorio_semanal]
   }
 }
 

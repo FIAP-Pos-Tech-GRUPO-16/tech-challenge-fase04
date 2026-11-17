@@ -6,9 +6,14 @@ resource "aws_cloudwatch_event_bus" "barramento" {
 }
 
 # ---------------------------------------------------------------------------
-# DLQs — todo alvo assíncrono do EventBridge (regra ou scheduler) tem uma fila de
-# mensagens mortas: se a notificação de urgência ou o relatório semanal falharem
-# mesmo após retry, a mensagem fica visível aqui em vez de se perder silenciosamente.
+# DLQs — cada função assíncrona (notificar-urgencia e gerar-relatorio-semanal) tem uma fila
+# de mensagens mortas que cobre os dois pontos onde um evento pode se perder:
+#   1. Falha de ENTREGA (EventBridge/Scheduler não conseguiu invocar a Lambda: permissão,
+#      throttling persistente, alvo inexistente) -> dead_letter_config do alvo, abaixo.
+#   2. Falha de EXECUÇÃO (a Lambda foi invocada, mas a função lançou exceção) -> como a
+#      invocação é assíncrona, o EventBridge já recebeu 202 e não vê o erro; quem trata é a
+#      própria Lambda, com as novas tentativas e o destino on-failure configurados em
+#      aws_lambda_function_event_invoke_config, no fim deste arquivo.
 # ---------------------------------------------------------------------------
 
 resource "aws_sqs_queue" "dlq_notificar_urgencia" {
@@ -182,4 +187,37 @@ resource "aws_lambda_permission" "permitir_scheduler_relatorio_semanal" {
   qualifier     = var.alias_funcao_gerar_relatorio_semanal
   principal     = "scheduler.amazonaws.com"
   source_arn    = aws_scheduler_schedule.relatorio_semanal.arn
+}
+
+# ---------------------------------------------------------------------------
+# Falhas de EXECUÇÃO das funções assíncronas: a Lambda tenta de novo (2x) e, se a função
+# continuar falhando, envia o evento original + o erro para a mesma DLQ (destino on-failure).
+# Configurado no alias "live", que é o que o EventBridge e o Scheduler invocam. O envio para
+# a fila usa a role de execução da função (sqs:SendMessage concedido no módulo iam).
+# ---------------------------------------------------------------------------
+
+resource "aws_lambda_function_event_invoke_config" "notificar_urgencia" {
+  function_name                = var.nome_funcao_notificar_urgencia
+  qualifier                    = var.alias_funcao_notificar_urgencia
+  maximum_retry_attempts       = 2
+  maximum_event_age_in_seconds = 3600
+
+  destination_config {
+    on_failure {
+      destination = aws_sqs_queue.dlq_notificar_urgencia.arn
+    }
+  }
+}
+
+resource "aws_lambda_function_event_invoke_config" "gerar_relatorio_semanal" {
+  function_name                = var.nome_funcao_gerar_relatorio_semanal
+  qualifier                    = var.alias_funcao_gerar_relatorio_semanal
+  maximum_retry_attempts       = 2
+  maximum_event_age_in_seconds = 3600
+
+  destination_config {
+    on_failure {
+      destination = aws_sqs_queue.dlq_relatorio_semanal.arn
+    }
+  }
 }
