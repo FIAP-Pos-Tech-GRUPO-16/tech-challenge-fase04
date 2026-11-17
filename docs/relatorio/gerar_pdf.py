@@ -27,10 +27,14 @@ PDF = RAIZ / "docs" / "Relatorio_Fase4_Grupo16.pdf"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORTA = 9339
 
+CABECALHO = (
+    '<div style="width:100%;margin:0 25mm;padding-bottom:3pt;border-bottom:0.6pt solid #111;'
+    'font-family:Charter,Georgia,serif;font-size:9pt;color:#111;display:flex;justify-content:space-between;">'
+    "<span>Plataforma de Feedback de Aulas</span><span>Relatório Técnico - Fase 4</span></div>"
+)
+
 RODAPE = (
-    '<div style="width:100%;font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;color:#666;'
-    'padding:0 20mm;display:flex;justify-content:space-between;">'
-    "<span>Plataforma de Feedback de Aulas · Relatório Técnico · Fase 4 · Grupo 16</span>"
+    '<div style="width:100%;text-align:center;font-family:Charter,Georgia,serif;font-size:9.5pt;color:#111;">'
     '<span class="pageNumber"></span></div>'
 )
 
@@ -87,7 +91,7 @@ class Navegador:
 def imprimir_documento(nav):
     capa = nav.imprimir(pageRanges="1", displayHeaderFooter=False)
     corpo = nav.imprimir(pageRanges="2-", displayHeaderFooter=True,
-                         headerTemplate="<span></span>", footerTemplate=RODAPE)
+                         headerTemplate=CABECALHO, footerTemplate=RODAPE)
     saida = PdfWriter()
     for parte in (capa, corpo):
         for pagina in PdfReader(io.BytesIO(parte)).pages:
