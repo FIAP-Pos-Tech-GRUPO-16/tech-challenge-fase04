@@ -151,6 +151,14 @@ Console AWS → Developer Tools → Settings → **Connections** → `tech-chall
 Depois disso, Console → CodePipeline → `tech-challenge-fase04-deploy` → **Release change** roda a
 primeira execução (as seguintes são disparadas pelos pushes).
 
+> **Atenção (aconteceu de verdade):** a conexão pode ficar `AVAILABLE` só com a autorização OAuth do
+> seu usuário, sem o app instalado na **organização**. Nesse estado o pipeline consegue baixar o
+> código (Release change funciona), mas o GitHub não envia os eventos de push e nenhum deploy é
+> disparado. Confira com `gh api orgs/FIAP-Pos-Tech-GRUPO-16/installations`: precisa listar
+> `aws-connector-for-github`. Se não listar, instale em
+> https://github.com/apps/aws-connector-for-github/installations/select_target escolhendo a
+> organização. A execução disparada por push aparece com gatilho `WebhookV2`.
+
 **Permissões da role de deploy (`cicd-tech-challenge-fase04-codebuild-deploy`):** gerencia os
 serviços usados pela aplicação; no IAM, só pode mexer nas roles com prefixo
 `tech-challenge-fase04-*`, só pode anexar a policy gerenciada de logs do Lambda e só repassa roles
