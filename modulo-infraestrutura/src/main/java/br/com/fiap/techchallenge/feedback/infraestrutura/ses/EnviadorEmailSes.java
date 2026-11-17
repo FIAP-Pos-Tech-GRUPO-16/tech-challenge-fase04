@@ -3,6 +3,8 @@ package br.com.fiap.techchallenge.feedback.infraestrutura.ses;
 import br.com.fiap.techchallenge.feedback.aplicacao.porta.EnviadorEmail;
 import br.com.fiap.techchallenge.feedback.aplicacao.relatorio.RelatorioSemanal;
 import br.com.fiap.techchallenge.feedback.dominio.Avaliacao;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.sesv2.model.SendEmailRequest;
 
@@ -13,6 +15,7 @@ import java.util.Locale;
  */
 public class EnviadorEmailSes implements EnviadorEmail {
 
+    private static final Logger LOG = LoggerFactory.getLogger(EnviadorEmailSes.class);
     private static final Locale LOCALE_EMAIL = Locale.of("pt", "BR");
 
     private final SesV2Client clienteSes;
@@ -27,21 +30,34 @@ public class EnviadorEmailSes implements EnviadorEmail {
 
     @Override
     public void enviarAlertaUrgencia(Avaliacao avaliacao) {
-        enviar(
+        String idMensagem = enviar(
             "Alerta de urgência - feedback crítico recebido",
             montarCorpoAlerta(avaliacao)
         );
+
+        LOG.atInfo()
+            .addKeyValue("tipoEmail", "ALERTA_URGENCIA")
+            .addKeyValue("avaliacaoId", avaliacao.id())
+            .addKeyValue("sesMessageId", idMensagem)
+            .log("E-mail de alerta de urgência enviado ao administrador");
     }
 
     @Override
     public void enviarRelatorioSemanal(RelatorioSemanal relatorio) {
-        enviar(
+        String idMensagem = enviar(
             "Relatório semanal de avaliações",
             montarCorpoRelatorio(relatorio)
         );
+
+        LOG.atInfo()
+            .addKeyValue("tipoEmail", "RELATORIO_SEMANAL")
+            .addKeyValue("totalAvaliacoes", relatorio.avaliacoes().size())
+            .addKeyValue("mediaNotas", relatorio.mediaNotas())
+            .addKeyValue("sesMessageId", idMensagem)
+            .log("E-mail do relatório semanal enviado ao administrador");
     }
 
-    private void enviar(String assunto, String corpo) {
+    private String enviar(String assunto, String corpo) {
         String destinatario = fornecedorEmailAdministrador.obterEmailAdministrador();
 
         SendEmailRequest requisicao = SendEmailRequest.builder()
@@ -52,7 +68,7 @@ public class EnviadorEmailSes implements EnviadorEmail {
                 .body(corpoEmail -> corpoEmail.text(texto -> texto.data(corpo)))))
             .build();
 
-        clienteSes.sendEmail(requisicao);
+        return clienteSes.sendEmail(requisicao).messageId();
     }
 
     private String montarCorpoAlerta(Avaliacao avaliacao) {

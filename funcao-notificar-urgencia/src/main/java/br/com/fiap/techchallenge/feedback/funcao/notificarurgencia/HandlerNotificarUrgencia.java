@@ -5,6 +5,8 @@ import br.com.fiap.techchallenge.feedback.dominio.Avaliacao;
 import br.com.fiap.techchallenge.feedback.dominio.NivelUrgencia;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -15,6 +17,8 @@ import java.util.function.Function;
  * traduzir o evento recebido. A decisão de notificar ou não é do caso de uso.
  */
 class HandlerNotificarUrgencia implements Function<String, String> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(HandlerNotificarUrgencia.class);
 
     private final NotificarUrgenciaCasoDeUso casoDeUso;
     private final ObjectMapper mapeadorJson;
@@ -28,6 +32,12 @@ class HandlerNotificarUrgencia implements Function<String, String> {
     public String apply(String eventoBruto) {
         Avaliacao avaliacao = extrairAvaliacao(eventoBruto);
         casoDeUso.executar(avaliacao);
+
+        LOG.atInfo()
+            .addKeyValue("avaliacaoId", avaliacao.id())
+            .addKeyValue("nivelUrgencia", avaliacao.nivelUrgencia())
+            .log("Evento AvaliacaoRecebida processado");
+
         return "Avaliação processada: " + avaliacao.id();
     }
 
@@ -42,6 +52,9 @@ class HandlerNotificarUrgencia implements Function<String, String> {
                 Instant.parse(detalhe.dataEnvio())
             );
         } catch (JsonProcessingException | IllegalArgumentException | NullPointerException e) {
+            LOG.atError()
+                .addKeyValue("causa", e.getClass().getSimpleName())
+                .log("Evento AvaliacaoRecebida malformado; a invocação vai falhar para acionar retry e destino de falha");
             throw new EventoInvalidoException("Evento AvaliacaoRecebida malformado", e);
         }
     }

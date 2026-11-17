@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.sesv2.model.SendEmailRequest;
+import software.amazon.awssdk.services.sesv2.model.SendEmailResponse;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -18,7 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class EnviadorEmailSesTest {
@@ -35,6 +38,8 @@ class EnviadorEmailSesTest {
     void configurar() {
         FornecedorEmailAdministrador fornecedorFixo = () -> EMAIL_ADMIN;
         enviadorEmail = new EnviadorEmailSes(clienteSes, fornecedorFixo, REMETENTE);
+        when(clienteSes.sendEmail(any(SendEmailRequest.class)))
+            .thenReturn(SendEmailResponse.builder().messageId("id-mensagem-teste").build());
     }
 
     @Test

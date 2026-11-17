@@ -8,6 +8,8 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -17,6 +19,8 @@ import java.util.function.Function;
  * traduzir a requisição/resposta HTTP. A regra de negócio fica inteira no caso de uso.
  */
 class HandlerReceberAvaliacao implements Function<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(HandlerReceberAvaliacao.class);
 
     private static final int STATUS_CRIADO = 201;
     private static final int STATUS_REQUISICAO_INVALIDA = 400;
@@ -34,8 +38,19 @@ class HandlerReceberAvaliacao implements Function<APIGatewayV2HTTPEvent, APIGate
         try {
             RequisicaoAvaliacao corpo = lerCorpo(requisicao);
             Avaliacao avaliacao = casoDeUso.executar(corpo.descricao(), corpo.nota());
+
+            LOG.atInfo()
+                .addKeyValue("avaliacaoId", avaliacao.id())
+                .addKeyValue("nota", avaliacao.nota())
+                .addKeyValue("nivelUrgencia", avaliacao.nivelUrgencia())
+                .log("Avaliação recebida, persistida e evento AvaliacaoRecebida publicado");
+
             return responder(STATUS_CRIADO, new RespostaAvaliacao(avaliacao.id().toString(), avaliacao.nivelUrgencia().name()));
         } catch (AvaliacaoInvalidaException | CorpoRequisicaoInvalidoException e) {
+            LOG.atWarn()
+                .addKeyValue("motivo", e.getMessage())
+                .log("Avaliação rejeitada por entrada inválida");
+
             return responder(STATUS_REQUISICAO_INVALIDA, new RespostaErro(e.getMessage()));
         }
     }

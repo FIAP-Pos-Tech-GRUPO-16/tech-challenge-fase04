@@ -1,6 +1,8 @@
 package br.com.fiap.techchallenge.feedback.funcao.gerarrelatoriosemanal;
 
 import br.com.fiap.techchallenge.feedback.aplicacao.casodeuso.GerarRelatorioSemanalCasoDeUso;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -12,6 +14,8 @@ import java.util.function.Function;
  */
 class HandlerGerarRelatorioSemanal implements Function<Map<String, Object>, String> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(HandlerGerarRelatorioSemanal.class);
+
     private final GerarRelatorioSemanalCasoDeUso casoDeUso;
 
     HandlerGerarRelatorioSemanal(GerarRelatorioSemanalCasoDeUso casoDeUso) {
@@ -20,7 +24,9 @@ class HandlerGerarRelatorioSemanal implements Function<Map<String, Object>, Stri
 
     @Override
     public String apply(Map<String, Object> evento) {
+        LOG.info("Geração do relatório semanal iniciada");
         casoDeUso.executar();
+        LOG.info("Geração do relatório semanal concluída");
         return "Relatório semanal gerado e enviado";
     }
 }
