@@ -13,6 +13,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -56,10 +57,12 @@ public class GerarRelatorioSemanalCasoDeUso {
             .orElse(0.0);
     }
 
+    // TreeMap: o relatório lista os dias em ordem cronológica.
     private Map<LocalDate, Long> agruparPorDia(List<Avaliacao> avaliacoes) {
         return avaliacoes.stream()
             .collect(Collectors.groupingBy(
                 avaliacao -> LocalDate.ofInstant(avaliacao.dataEnvio(), ZoneOffset.UTC),
+                TreeMap::new,
                 Collectors.counting()
             ));
     }

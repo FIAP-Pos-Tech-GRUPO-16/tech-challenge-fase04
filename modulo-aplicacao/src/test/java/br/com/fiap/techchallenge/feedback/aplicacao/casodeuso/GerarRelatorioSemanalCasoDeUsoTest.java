@@ -61,6 +61,8 @@ class GerarRelatorioSemanalCasoDeUsoTest {
         assertThat(relatorio.quantidadePorDia())
             .containsEntry(LocalDate.of(2026, 1, 5), 2L)
             .containsEntry(LocalDate.of(2026, 1, 6), 1L);
+        assertThat(relatorio.quantidadePorDia().keySet())
+            .containsExactly(LocalDate.of(2026, 1, 5), LocalDate.of(2026, 1, 6));
         assertThat(relatorio.quantidadePorUrgencia())
             .containsEntry(NivelUrgencia.BAIXA, 1L)
             .containsEntry(NivelUrgencia.MEDIA, 1L)
