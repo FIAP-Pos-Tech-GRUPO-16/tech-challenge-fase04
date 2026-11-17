@@ -11,6 +11,12 @@ data "aws_region" "atual" {}
 resource "aws_cognito_user_pool" "estudantes" {
   name = "${var.prefixo}-estudantes"
 
+  # Só o administrador cria contas (AdminCreateUser). Sem isso, qualquer pessoa com o client_id,
+  # que é público, conseguiria se cadastrar pela API SignUp e obter um token válido.
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+  }
+
   password_policy {
     minimum_length    = 8
     require_lowercase = true
@@ -37,6 +43,9 @@ resource "aws_cognito_user_pool_client" "api_estudantes" {
     "ALLOW_ADMIN_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
+
+  # Erro genérico em login com usuário inexistente: não revela quais usuários existem.
+  prevent_user_existence_errors = "ENABLED"
 
   access_token_validity  = 60
   id_token_validity      = 60
