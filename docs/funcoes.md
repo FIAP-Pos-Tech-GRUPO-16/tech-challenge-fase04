@@ -107,7 +107,9 @@ relógio do sistema, últimos 7 dias).
 
 **Dados do relatório** (conforme contrato do desafio): lista das avaliações do período (cada uma
 com descrição, urgência, data de envio), média das notas, quantidade de avaliações por dia e
-quantidade de avaliações por nível de urgência.
+quantidade de avaliações por nível de urgência. As contagens diárias usam o fuso
+`America/Sao_Paulo`, para que avaliações próximas à meia-noite sejam atribuídas ao dia do calendário
+brasileiro. A janela dos últimos 7 dias continua baseada em instantes de tempo.
 
 **Efeitos colaterais**: consulta o DynamoDB (via GSI `gsi_data_envio`, sem Scan completo); envia
 e-mail via SES.

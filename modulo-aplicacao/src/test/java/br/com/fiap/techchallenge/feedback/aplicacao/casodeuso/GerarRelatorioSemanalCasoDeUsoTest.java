@@ -45,8 +45,8 @@ class GerarRelatorioSemanalCasoDeUsoTest {
     void deveAgregarAvaliacoesDaSemanaECalcularMediaEContagens() {
         List<Avaliacao> avaliacoesDaSemana = List.of(
             new Avaliacao(UUID.randomUUID(), "Aula ótima", 9, NivelUrgencia.BAIXA, Instant.parse("2026-01-05T08:00:00Z")),
-            new Avaliacao(UUID.randomUUID(), "Aula ok", 5, NivelUrgencia.MEDIA, Instant.parse("2026-01-05T09:00:00Z")),
-            new Avaliacao(UUID.randomUUID(), "Aula ruim", 1, NivelUrgencia.ALTA, Instant.parse("2026-01-06T10:00:00Z"))
+            new Avaliacao(UUID.randomUUID(), "Aula ok", 5, NivelUrgencia.MEDIA, Instant.parse("2026-01-06T02:30:00Z")),
+            new Avaliacao(UUID.randomUUID(), "Aula ruim", 1, NivelUrgencia.ALTA, Instant.parse("2026-01-06T03:30:00Z"))
         );
         when(repositorioAvaliacao.buscarPorPeriodo(any(), any())).thenReturn(avaliacoesDaSemana);
 

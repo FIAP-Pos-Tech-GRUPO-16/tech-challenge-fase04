@@ -9,7 +9,7 @@ import br.com.fiap.techchallenge.feedback.dominio.NivelUrgencia;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 public class GerarRelatorioSemanalCasoDeUso {
 
     private static final int DIAS_DO_RELATORIO = 7;
+    private static final ZoneId FUSO_RELATORIO = ZoneId.of("America/Sao_Paulo");
 
     private final RepositorioAvaliacao repositorioAvaliacao;
     private final EnviadorEmail enviadorEmail;
@@ -61,7 +62,7 @@ public class GerarRelatorioSemanalCasoDeUso {
     private Map<LocalDate, Long> agruparPorDia(List<Avaliacao> avaliacoes) {
         return avaliacoes.stream()
             .collect(Collectors.groupingBy(
-                avaliacao -> LocalDate.ofInstant(avaliacao.dataEnvio(), ZoneOffset.UTC),
+                avaliacao -> LocalDate.ofInstant(avaliacao.dataEnvio(), FUSO_RELATORIO),
                 TreeMap::new,
                 Collectors.counting()
             ));
