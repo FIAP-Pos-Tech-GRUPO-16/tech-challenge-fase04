@@ -36,6 +36,46 @@ as configurações do projeto. Sugestão de roteiro (ajustar à vontade):
   do GitHub Actions, e a alternativa (access key no GitHub) seria menos segura. Com
   CodeConnections, nenhuma credencial AWS fica no GitHub.
 
+## Links do console AWS para mostrar no vídeo
+
+Entre antes no console com a conta do projeto (região `us-east-2`). Os links abaixo usam o endereço
+padrão do console; a nova experiência AWS redireciona para o subdomínio da conta automaticamente.
+
+**Segurança e governança de acesso**
+- Roles IAM (uma por função, privilégio mínimo):
+  https://us-east-1.console.aws.amazon.com/iam/home#/roles?search=tech-challenge-fase04
+- Exemplo de policy mínima (`notificar-urgencia`):
+  https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/tech-challenge-fase04-notificar-urgencia?section=permissions
+- Cognito (User Pool, cadastro só pelo admin, client sem secret):
+  https://us-east-2.console.aws.amazon.com/cognito/v2/idp/user-pools/us-east-2_rGGDsOCdY/overview?region=us-east-2
+- API Gateway (rota `POST /avaliacao` com JWT Authorizer, throttling e log de acesso):
+  https://us-east-2.console.aws.amazon.com/apigateway/main/develop/routes?api=0wywnn2xkg&region=us-east-2
+- DynamoDB (criptografia e PITR em *Backups* / *Additional settings*):
+  https://us-east-2.console.aws.amazon.com/dynamodbv2/home?region=us-east-2#table?name=tech-challenge-fase04-avaliacoes
+- DLQs SQS (criptografia SSE):
+  https://us-east-2.console.aws.amazon.com/sqs/v3/home?region=us-east-2#/queues
+- SSM Parameter Store (e-mail do admin fora do código):
+  https://us-east-2.console.aws.amazon.com/systems-manager/parameters?region=us-east-2
+- SES (identidades verificadas, modo sandbox):
+  https://us-east-2.console.aws.amazon.com/ses/home?region=us-east-2#/identities
+- Bucket do state do Terraform (acesso público bloqueado, criptografia, versionamento):
+  https://us-east-1.console.aws.amazon.com/s3/buckets/tech-challenge-fase04-terraform-state-827938108008?region=us-east-2&tab=permissions
+- Auditoria (histórico de eventos do CloudTrail):
+  https://us-east-2.console.aws.amazon.com/cloudtrail/home?region=us-east-2#/events
+- Gestão do projeto e políticas da conta (nova experiência AWS): https://settings.aws.com
+
+**Funções, deploy e monitoramento**
+- Lambdas: https://us-east-2.console.aws.amazon.com/lambda/home?region=us-east-2#/functions
+- Pipeline de deploy:
+  https://us-east-2.console.aws.amazon.com/codesuite/codepipeline/pipelines/tech-challenge-fase04-deploy/view?region=us-east-2
+- EventBridge (barramento, regra e agendamento):
+  https://us-east-2.console.aws.amazon.com/events/home?region=us-east-2#/eventbuses
+  e https://us-east-2.console.aws.amazon.com/scheduler/home?region=us-east-2#schedules
+- Dashboard:
+  https://us-east-2.console.aws.amazon.com/cloudwatch/home?region=us-east-2#dashboards/dashboard/tech-challenge-fase04-visao-geral
+- Alarmes: https://us-east-2.console.aws.amazon.com/cloudwatch/home?region=us-east-2#alarmsV2:
+- Logs Insights: https://us-east-2.console.aws.amazon.com/cloudwatch/home?region=us-east-2#logsV2:logs-insights
+
 ## Checklist antes de gravar
 - [ ] Repositório com todo o código commitado e enviado.
 - [ ] Última execução do pipeline `tech-challenge-fase04-deploy` com sucesso.
