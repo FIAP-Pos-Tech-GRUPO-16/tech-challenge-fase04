@@ -57,3 +57,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Fonte do relatório de entrega (só local) ###
+docs/relatorio/

@@ -308,7 +308,7 @@ Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md#segurança-e-governança
 
 | Documento | Conteúdo |
 |---|---|
-| [`docs/Relatorio_Fase4_Grupo16.pdf`](docs/Relatorio_Fase4_Grupo16.pdf) | Relatório técnico de entrega (fonte em `docs/relatorio/`) |
+| [`docs/Relatorio_Fase4_Grupo16.pdf`](docs/Relatorio_Fase4_Grupo16.pdf) | Relatório técnico de entrega |
 | [`docs/arquitetura.md`](docs/arquitetura.md) | Modelo de cloud, componentes, decisões de design, segurança |
 | [`docs/deploy.md`](docs/deploy.md) | Setup da conta AWS, bootstrap do Terraform, pipeline, smoke test |
 | [`docs/monitoramento.md`](docs/monitoramento.md) | Logs, dashboard, alarmes |
