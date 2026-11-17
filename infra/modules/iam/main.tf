@@ -10,6 +10,15 @@ locals {
   # barramento: evitar dependência circular entre os módulos iam e eventbridge.
   arn_dlq_notificar_urgencia = "arn:aws:sqs:${local.prefixo_arn_regional}:${var.prefixo}-dlq-notificar-urgencia"
   arn_dlq_relatorio_semanal  = "arn:aws:sqs:${local.prefixo_arn_regional}:${var.prefixo}-dlq-relatorio-semanal"
+
+  # Com o SES em sandbox, o IAM avalia ses:SendEmail também contra a identidade do DESTINATÁRIO
+  # (confirmado em produção: AccessDenied em identity/<destinatário> ao trocar o e-mail do admin).
+  # Como o destinatário vem do SSM e pode mudar sem deploy, a permissão cobre as identidades
+  # verificadas desta conta/região, e não um e-mail fixo.
+  arns_identidades_ses = [
+    var.arn_identidade_ses_remetente,
+    "arn:aws:ses:${local.prefixo_arn_regional}:identity/*",
+  ]
 }
 
 # ---------------------------------------------------------------------------
@@ -74,7 +83,7 @@ data "aws_iam_policy_document" "notificar_urgencia" {
   statement {
     sid       = "EnviarAlertaPorEmail"
     actions   = ["ses:SendEmail", "ses:SendRawEmail"]
-    resources = [var.arn_identidade_ses_remetente]
+    resources = local.arns_identidades_ses
   }
 
   statement {
@@ -124,7 +133,7 @@ data "aws_iam_policy_document" "gerar_relatorio_semanal" {
   statement {
     sid       = "EnviarRelatorioPorEmail"
     actions   = ["ses:SendEmail", "ses:SendRawEmail"]
-    resources = [var.arn_identidade_ses_remetente]
+    resources = local.arns_identidades_ses
   }
 
   statement {
