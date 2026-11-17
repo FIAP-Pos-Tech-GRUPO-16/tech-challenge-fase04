@@ -58,35 +58,10 @@ responsabilidade — ver [Como funciona](#como-funciona).
 
 ## Arquitetura
 
-```
-                         ┌─────────────────────┐
-  Estudante  ── POST ──▶ │   API Gateway (HTTP) │
-                         └──────────┬───────────┘
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │ Lambda: receber-avaliacao      │  (SRP: validar + persistir + publicar evento)
-                    └───────┬───────────────┬────────┘
-                            ▼                ▼
-                     ┌────────────┐   ┌──────────────────────────┐
-                     │ DynamoDB    │   │ EventBridge (bus próprio) │
-                     └─────┬──────┘   └──────────┬────────────────┘
-                           │                       │ regra: nivelUrgencia = ALTA
-             consulta      │                       ▼
-             (GSI por data)│          ┌─────────────────────────────┐
-                           │          │ Lambda: notificar-urgencia   │ (SRP: só notifica)
-                           │          └──────────────┬───────────────┘
-                           │                          ▼
-                           │                     SES ──▶ e-mail do admin (SSM Parameter)
-                    ┌──────▼─────────────────────────┐
-                    │ EventBridge Scheduler (semanal) │
-                    └──────────────┬──────────────────┘
-                                   ▼
-                    ┌───────────────────────────────────┐
-                    │ Lambda: gerar-relatorio-semanal    │ (SRP: agrega + envia relatório)
-                    └──────────────────┬──────────────────┘
-                                       ▼
-                                  SES ──▶ e-mail do admin (relatório)
-```
+![Arquitetura serverless da plataforma](docs/imagens/arquitetura.svg)
+
+*As duas funções que enviam e-mail leem o destinatário no SSM; cada função assíncrona tem sua
+própria DLQ.*
 
 Detalhamento completo, trade-offs e justificativas de cada escolha em
 [`docs/arquitetura.md`](docs/arquitetura.md).
