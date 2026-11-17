@@ -427,6 +427,44 @@
           ]
         },
         {
+          "name": "Erro - campo não reconhecido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Aula boa\",\n  \"nota\": 8,\n  \"origem\": \"app\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{api_base_url}}/avaliacao"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Mensagem cita o campo não reconhecido', function () {",
+                  "    pm.expect(pm.response.json().mensagem).to.include('origem');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Erro - sem token (401)",
           "description": "Confirma que o JWT Authorizer realmente protege o endpoint — sobrescreve o auth herdado da pasta com 'noauth' de propósito.",
           "request": {
@@ -437,6 +475,52 @@
               "mode": "raw",
               "raw": "{\n  \"descricao\": \"Essa requisição não deve ser aceita\",\n  \"nota\": 5\n}",
               "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{api_base_url}}/avaliacao"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Erro - token inválido (401)",
+          "description": "Token com formato de JWT, mas não emitido pelo Cognito do projeto: o JWT Authorizer rejeita antes de invocar a Lambda.",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0ZSJ9.assinatura-invalida",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Essa requisição não deve ser aceita\",\n  \"nota\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{api_base_url}}/avaliacao"
           },

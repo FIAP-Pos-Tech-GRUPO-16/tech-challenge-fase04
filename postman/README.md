@@ -51,10 +51,11 @@ e 2).
 
 Testa o endpoint público `POST /avaliacao`. Exige o JWT da pasta 00 — a pasta inteira já está
 configurada com `Authorization: Bearer {{id_token}}` (herdado por todas as requisições filhas).
-Inclui casos de sucesso (um para cada nível de urgência), casos de erro de validação (nota fora do
-intervalo, campo ausente, descrição vazia, descrição acima de 1000 caracteres, corpo vazio, JSON
-malformado) e um caso específico **sem token**, confirmando que o endpoint realmente barra
-requisições não autenticadas (`401`). Cada requisição já vem com scripts de teste (aba *Tests*)
+Inclui casos de sucesso (um para cada nível de urgência), 8 casos de erro de validação (nota acima
+e abaixo do intervalo, campo `nota` ausente, descrição vazia, descrição acima de 1000 caracteres,
+corpo vazio, JSON malformado e campo não reconhecido) e 2 casos de autenticação, **sem token** e
+com **token inválido**, confirmando que o endpoint realmente barra requisições não autenticadas
+(`401`). Cada requisição já vem com scripts de teste (aba *Tests*)
 validando status code e corpo da resposta.
 
 Rodar a requisição **"Avaliação válida - urgência ALTA / crítica"** dispara de verdade a função
@@ -74,8 +75,9 @@ sufixo `:live` é o alias que habilita o SnapStart), autenticada com AWS Signatu
 - **Notificar Urgência → evento de urgência ALTA**: envia o mesmo formato de evento que o
   EventBridge publica de verdade; espera `200` do Lambda e nenhum `X-Amz-Function-Error`.
 - **Notificar Urgência → evento malformado**: confirma que a função rejeita (propositalmente,
-  sem capturar a exceção) um evento sem o campo `detail` — é esse o comportamento que aciona o
-  retry/DLQ em produção.
+  sem capturar a exceção) um evento sem o campo `detail`. Aqui a invocação é direta e síncrona,
+  então o erro volta na hora para o Postman; em produção, o mesmo erro numa invocação assíncrona
+  do EventBridge aciona as novas tentativas e, esgotadas, o destino de falha (DLQ).
 - **Gerar Relatório Semanal → invocação**: dispara a agregação e o envio do relatório por e-mail
   sem esperar a segunda-feira.
 
@@ -84,3 +86,16 @@ sufixo `:live` é o alias que habilita o SnapStart), autenticada com AWS Signatu
 Collection Runner (Postman) → selecionar a collection + o environment → Run, na ordem das pastas
 (00 → 01 → 02 → 03). Todas as requisições de erro das pastas 00/01 esperam falhar com `400`/`401`
 (isso é o comportamento correto sendo validado, não um problema).
+
+Pela linha de comando, com o [newman](https://github.com/postmanlabs/newman):
+
+```
+eval "$(aws configure export-credentials --profile tech-challenge-fase04 --format env)"
+newman run tech-challenge-fase04.postman_collection.json \
+  -e tech-challenge-fase04.postman_environment.json \
+  --env-var "aws_access_key_id=$AWS_ACCESS_KEY_ID" \
+  --env-var "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" \
+  --env-var "aws_session_token=$AWS_SESSION_TOKEN"
+```
+
+Resultado esperado: 19 requisições e 34 asserções, nenhuma falha.
